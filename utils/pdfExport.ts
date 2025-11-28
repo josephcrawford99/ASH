@@ -1,5 +1,4 @@
 import * as Print from 'expo-print';
-import { readAsStringAsync, EncodingType } from 'expo-file-system';
 import { Asset } from 'expo-asset';
 import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
 import { PhotoKey, KeyItem, Floorplan, Coordinates } from '@/types';
@@ -17,10 +16,13 @@ async function loadVectorAsset(): Promise<string | null> {
     await asset.downloadAsync();
 
     if (asset.localUri) {
-      const base64 = await readAsStringAsync(asset.localUri, {
-        encoding: EncodingType.Base64,
-      });
-      vectorAssetBase64 = `data:image/png;base64,${base64}`;
+      // Use image manipulator to get base64 (same method that works for photos)
+      const result = await manipulateAsync(
+        asset.localUri,
+        [],
+        { base64: true, format: SaveFormat.PNG }
+      );
+      vectorAssetBase64 = `data:image/png;base64,${result.base64}`;
       return vectorAssetBase64;
     }
   } catch (error) {
