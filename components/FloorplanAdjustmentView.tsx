@@ -1,20 +1,13 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
-import { View, StyleSheet, Modal, Pressable } from 'react-native';
+import { View, StyleSheet, Modal, Pressable, Image } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import MapView, { Marker, Overlay, PROVIDER_DEFAULT } from 'react-native-maps';
+import MapView, { Marker, PROVIDER_DEFAULT, Region } from 'react-native-maps';
 import { Ionicons } from '@expo/vector-icons';
 import { ThemedText } from './ThemedText';
 import { KeyVector } from './KeyVector';
 import { useTheme } from '@/hooks/useThemeColor';
 import { Spacing } from '@/constants/spacing';
 import { Floorplan, KeyItem, Coordinates } from '@/types';
-
-// Adjustment step sizes
-const COORD_STEP = 0.00005; // ~5 meters
-const ROTATION_STEP = 5; // degrees
-const SCALE_STEP = 0.1; // multiplier increment
-const MIN_SCALE = 0.2;
-const MAX_SCALE = 3.0;
 
 interface FloorplanAdjustmentViewProps {
   visible: boolean;
@@ -35,11 +28,8 @@ export function FloorplanAdjustmentView({
   const insets = useSafeAreaInsets();
   const mapRef = useRef<MapView>(null);
 
-  // Local state for adjustments
-  const [centerLat, setCenterLat] = useState(floorplan.centerCoordinates.latitude);
-  const [centerLng, setCenterLng] = useState(floorplan.centerCoordinates.longitude);
-  const [rotation, setRotation] = useState(floorplan.rotation);
-  const [scale, setScale] = useState(floorplan.scale);
+  // Track current map region for saving
+  const [currentRegion, setCurrentRegion] = useState<Region | null>(null);
 
   // Filter items with GPS coordinates
   const markersWithCoords = useMemo(() => {
@@ -48,7 +38,7 @@ export function FloorplanAdjustmentView({
       .filter((entry) => entry.item.coordinates !== null);
   }, [keyitems]);
 
-  // Calculate marker bounds for base overlay size
+  // Calculate marker bounds for initial region
   const markerBounds = useMemo(() => {
     if (markersWithCoords.length === 0) return null;
 
@@ -61,106 +51,98 @@ export function FloorplanAdjustmentView({
     const maxLng = Math.max(...lngs);
 
     return {
-      minLat,
-      maxLat,
-      minLng,
-      maxLng,
       centerLat: (minLat + maxLat) / 2,
       centerLng: (minLng + maxLng) / 2,
-      latSpan: Math.max(maxLat - minLat, 0.0005), // minimum span
+      latSpan: Math.max(maxLat - minLat, 0.0005),
       lngSpan: Math.max(maxLng - minLng, 0.0005),
     };
   }, [markersWithCoords]);
 
-  // Reset state when modal opens
-  useEffect(() => {
-    if (visible) {
-      setCenterLat(floorplan.centerCoordinates.latitude);
-      setCenterLng(floorplan.centerCoordinates.longitude);
-      setRotation(floorplan.rotation);
-      setScale(floorplan.scale);
-    }
-  }, [visible, floorplan]);
+  // Check if floorplan has been saved before (has non-default values)
+  const hasSavedPosition = useMemo(() => {
+    return (
+      floorplan.centerCoordinates.latitude !== 0 &&
+      floorplan.centerCoordinates.longitude !== 0 &&
+      floorplan.scale > 0 &&
+      floorplan.scale !== 1.0 // 1.0 is the default
+    );
+  }, [floorplan]);
 
-  // Fit map to markers when visible
+  // Initial region - use saved values if available, otherwise marker bounds
+  const initialRegion = useMemo(() => {
+    // If we have saved position, use it
+    if (hasSavedPosition) {
+      return {
+        latitude: floorplan.centerCoordinates.latitude,
+        longitude: floorplan.centerCoordinates.longitude,
+        latitudeDelta: floorplan.scale,
+        longitudeDelta: floorplan.rotation > 0 ? floorplan.rotation : floorplan.scale,
+      };
+    }
+
+    // Otherwise use marker bounds for new floorplans
+    if (!markerBounds) return null;
+
+    const latDelta = Math.max(markerBounds.latSpan * 1.5, 0.005);
+    const lngDelta = Math.max(markerBounds.lngSpan * 1.5, 0.005);
+
+    return {
+      latitude: markerBounds.centerLat,
+      longitude: markerBounds.centerLng,
+      latitudeDelta: latDelta,
+      longitudeDelta: lngDelta,
+    };
+  }, [markerBounds, floorplan, hasSavedPosition]);
+
+  // Fit map to markers only for NEW floorplans (no saved position)
   useEffect(() => {
-    if (visible && mapRef.current && markersWithCoords.length > 0) {
-      const coordinates = markersWithCoords.map((entry) => ({
-        latitude: entry.item.coordinates!.latitude,
-        longitude: entry.item.coordinates!.longitude,
+    if (visible && !hasSavedPosition && markersWithCoords.length > 0 && mapRef.current) {
+      const coordinates = markersWithCoords.map((m) => ({
+        latitude: m.item.coordinates!.latitude,
+        longitude: m.item.coordinates!.longitude,
       }));
 
       setTimeout(() => {
         mapRef.current?.fitToCoordinates(coordinates, {
-          edgePadding: { top: 100, right: 50, bottom: 100, left: 50 },
+          edgePadding: { top: 80, right: 80, bottom: 80, left: 80 },
           animated: false,
         });
       }, 100);
     }
-  }, [visible, markersWithCoords]);
+  }, [visible, markersWithCoords, hasSavedPosition]);
 
-  // Handle save
+  // Handle save - capture current map region
+  // We store latitudeDelta in scale and longitudeDelta in rotation (repurposed)
   const handleSave = useCallback(() => {
-    onSave({
-      centerCoordinates: { latitude: centerLat, longitude: centerLng },
-      rotation,
-      scale,
-    });
-  }, [centerLat, centerLng, rotation, scale, onSave]);
+    if (currentRegion) {
+      onSave({
+        centerCoordinates: {
+          latitude: currentRegion.latitude,
+          longitude: currentRegion.longitude,
+        },
+        rotation: currentRegion.longitudeDelta, // Store longitudeDelta here
+        scale: currentRegion.latitudeDelta,
+      });
+    } else if (initialRegion) {
+      // Fallback to initial region if no changes made
+      onSave({
+        centerCoordinates: {
+          latitude: initialRegion.latitude,
+          longitude: initialRegion.longitude,
+        },
+        rotation: initialRegion.longitudeDelta,
+        scale: initialRegion.latitudeDelta,
+      });
+    }
+  }, [currentRegion, initialRegion, onSave]);
 
   // Handle cancel
   const handleCancel = useCallback(() => {
     onCancel();
   }, [onCancel]);
 
-  // Position controls - move floorplan center in GPS coordinates
-  const moveUp = useCallback(() => setCenterLat((prev) => prev + COORD_STEP), []);
-  const moveDown = useCallback(() => setCenterLat((prev) => prev - COORD_STEP), []);
-  const moveLeft = useCallback(() => setCenterLng((prev) => prev - COORD_STEP), []);
-  const moveRight = useCallback(() => setCenterLng((prev) => prev + COORD_STEP), []);
-
-  // Size controls - scale multiplier
-  const sizeUp = useCallback(() => setScale((prev) => Math.min(prev + SCALE_STEP, MAX_SCALE)), []);
-  const sizeDown = useCallback(() => setScale((prev) => Math.max(prev - SCALE_STEP, MIN_SCALE)), []);
-
-  // Rotation controls
-  const rotateClockwise = useCallback(() => setRotation((prev) => (prev + ROTATION_STEP) % 360), []);
-  const rotateCounterClockwise = useCallback(() => setRotation((prev) => (prev - ROTATION_STEP + 360) % 360), []);
-
-  // Calculate overlay bounds based on marker bounds and scale multiplier
-  const overlayBounds = useMemo(() => {
-    if (!markerBounds) return null;
-
-    // Base size matches the marker span
-    const baseLatSpan = markerBounds.latSpan;
-    const baseLngSpan = markerBounds.lngSpan;
-
-    // Apply scale multiplier
-    const scaledLatSpan = baseLatSpan * scale;
-    const scaledLngSpan = baseLngSpan * scale;
-
-    const halfLatSpan = scaledLatSpan / 2;
-    const halfLngSpan = scaledLngSpan / 2;
-
-    return [
-      [centerLat - halfLatSpan, centerLng - halfLngSpan], // SW corner
-      [centerLat + halfLatSpan, centerLng + halfLngSpan], // NE corner
-    ] as [[number, number], [number, number]];
-  }, [centerLat, centerLng, scale, markerBounds]);
-
-  // Initial region for map (will be overridden by fitToCoordinates)
-  const initialRegion = useMemo(() => {
-    if (!markerBounds) return null;
-    return {
-      latitude: markerBounds.centerLat,
-      longitude: markerBounds.centerLng,
-      latitudeDelta: markerBounds.latSpan * 2,
-      longitudeDelta: markerBounds.lngSpan * 2,
-    };
-  }, [markerBounds]);
-
   // Show message if no GPS data for markers
-  if (markersWithCoords.length === 0 || !initialRegion || !overlayBounds) {
+  if (markersWithCoords.length === 0 || !initialRegion) {
     return (
       <Modal visible={visible} animationType="slide" presentationStyle="fullScreen">
         <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top, paddingBottom: insets.bottom }]}>
@@ -212,161 +194,50 @@ export function FloorplanAdjustmentView({
           </Pressable>
         </View>
 
-        {/* Map with Overlay and Markers */}
+        {/* Map container with floorplan overlay */}
         <View style={styles.mapContainer}>
+          {/* MapView - user can pan and zoom this */}
           <MapView
             ref={mapRef}
             style={styles.map}
             provider={PROVIDER_DEFAULT}
             initialRegion={initialRegion}
+            onRegionChangeComplete={setCurrentRegion}
             showsUserLocation={false}
             showsMyLocationButton={false}
             showsCompass={false}
+            rotateEnabled={false}
             userInterfaceStyle={theme}
           >
-            {/* Floorplan as Overlay - positioned by GPS bounds */}
-            <Overlay
-              bounds={overlayBounds}
-              image={{ uri: floorplan.imageUri }}
-              bearing={rotation}
-              opacity={0.5}
-            />
-
-            {/* KeyVector markers - FIXED at their GPS positions */}
+            {/* KeyVector markers at their GPS positions */}
             {markersWithCoords.map(({ item, index }) => (
               <Marker
                 key={item.id}
                 coordinate={item.coordinates as Coordinates}
                 anchor={{ x: 0.5, y: 0.5 }}
+                flat={true}
                 tracksViewChanges={false}
               >
                 <KeyVector number={index + 1} direction={item.direction} size={36} />
               </Marker>
             ))}
           </MapView>
+
+          {/* Floorplan overlay - fixed on top, semi-transparent */}
+          <View style={styles.floorplanOverlay} pointerEvents="none">
+            <Image
+              source={{ uri: floorplan.imageUri }}
+              style={styles.floorplanImage}
+              resizeMode="contain"
+            />
+          </View>
         </View>
 
         {/* Instructions */}
         <View style={styles.instructions}>
           <ThemedText style={styles.instructionText}>
-            Adjust the floorplan to align with the markers
+            Pinch to zoom and drag the map to align the markers with the floorplan
           </ThemedText>
-        </View>
-
-        {/* Controls */}
-        <View style={[styles.controlsContainer, { backgroundColor: colors.cardBackground }]}>
-          {/* Position controls */}
-          <View style={styles.controlGroup}>
-            <ThemedText style={styles.controlLabel}>Position</ThemedText>
-            <View style={styles.arrowControls}>
-              <View style={styles.arrowRow}>
-                <Pressable
-                  onPress={moveUp}
-                  style={({ pressed }) => [
-                    styles.arrowButton,
-                    { backgroundColor: colors.text },
-                    pressed && { opacity: 0.7 },
-                  ]}
-                >
-                  <Ionicons name="arrow-up" size={20} color={colors.background} />
-                </Pressable>
-              </View>
-              <View style={styles.arrowRow}>
-                <Pressable
-                  onPress={moveLeft}
-                  style={({ pressed }) => [
-                    styles.arrowButton,
-                    { backgroundColor: colors.text },
-                    pressed && { opacity: 0.7 },
-                  ]}
-                >
-                  <Ionicons name="arrow-back" size={20} color={colors.background} />
-                </Pressable>
-                <View style={styles.arrowSpacer} />
-                <Pressable
-                  onPress={moveRight}
-                  style={({ pressed }) => [
-                    styles.arrowButton,
-                    { backgroundColor: colors.text },
-                    pressed && { opacity: 0.7 },
-                  ]}
-                >
-                  <Ionicons name="arrow-forward" size={20} color={colors.background} />
-                </Pressable>
-              </View>
-              <View style={styles.arrowRow}>
-                <Pressable
-                  onPress={moveDown}
-                  style={({ pressed }) => [
-                    styles.arrowButton,
-                    { backgroundColor: colors.text },
-                    pressed && { opacity: 0.7 },
-                  ]}
-                >
-                  <Ionicons name="arrow-down" size={20} color={colors.background} />
-                </Pressable>
-              </View>
-            </View>
-          </View>
-
-          {/* Size controls */}
-          <View style={styles.controlGroup}>
-            <ThemedText style={styles.controlLabel}>Size</ThemedText>
-            <View style={styles.plusMinusControls}>
-              <Pressable
-                onPress={sizeDown}
-                style={({ pressed }) => [
-                  styles.plusMinusButton,
-                  { backgroundColor: colors.text },
-                  pressed && { opacity: 0.7 },
-                ]}
-              >
-                <Ionicons name="remove" size={20} color={colors.background} />
-              </Pressable>
-              <Pressable
-                onPress={sizeUp}
-                style={({ pressed }) => [
-                  styles.plusMinusButton,
-                  { backgroundColor: colors.text },
-                  pressed && { opacity: 0.7 },
-                ]}
-              >
-                <Ionicons name="add" size={20} color={colors.background} />
-              </Pressable>
-            </View>
-          </View>
-
-          {/* Rotation controls */}
-          <View style={styles.controlGroup}>
-            <ThemedText style={styles.controlLabel}>Rotate</ThemedText>
-            <View style={styles.plusMinusControls}>
-              <Pressable
-                onPress={rotateCounterClockwise}
-                style={({ pressed }) => [
-                  styles.plusMinusButton,
-                  { backgroundColor: colors.text },
-                  pressed && { opacity: 0.7 },
-                ]}
-              >
-                <Ionicons
-                  name="refresh-outline"
-                  size={20}
-                  color={colors.background}
-                  style={{ transform: [{ scaleX: -1 }] }}
-                />
-              </Pressable>
-              <Pressable
-                onPress={rotateClockwise}
-                style={({ pressed }) => [
-                  styles.plusMinusButton,
-                  { backgroundColor: colors.text },
-                  pressed && { opacity: 0.7 },
-                ]}
-              >
-                <Ionicons name="refresh-outline" size={20} color={colors.background} />
-              </Pressable>
-            </View>
-          </View>
         </View>
       </View>
     </Modal>
@@ -404,9 +275,21 @@ const styles = StyleSheet.create({
   },
   mapContainer: {
     flex: 1,
+    position: 'relative',
   },
   map: {
     flex: 1,
+  },
+  floorplanOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: Spacing.xl,
+  },
+  floorplanImage: {
+    width: '100%',
+    height: '100%',
+    opacity: 0.6,
   },
   noDataContainer: {
     flex: 1,
@@ -427,61 +310,12 @@ const styles = StyleSheet.create({
   },
   instructions: {
     paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.sm,
+    paddingVertical: Spacing.md,
     alignItems: 'center',
   },
   instructionText: {
     fontSize: 13,
     opacity: 0.6,
     textAlign: 'center',
-  },
-  controlsContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    alignItems: 'flex-start',
-    paddingVertical: Spacing.lg,
-    paddingHorizontal: Spacing.md,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: 'rgba(128, 128, 128, 0.3)',
-  },
-  controlGroup: {
-    alignItems: 'center',
-    gap: Spacing.sm,
-  },
-  controlLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    opacity: 0.6,
-    textTransform: 'uppercase',
-  },
-  arrowControls: {
-    gap: Spacing.xs,
-  },
-  arrowRow: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: Spacing.xs,
-  },
-  arrowSpacer: {
-    width: 36,
-  },
-  arrowButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  plusMinusControls: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-  },
-  plusMinusButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    justifyContent: 'center',
-    alignItems: 'center',
   },
 });

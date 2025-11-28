@@ -26,11 +26,14 @@ jest.mock('react-native-maps', () => {
 
 const createMockKeyItem = (overrides: Partial<KeyItem> = {}): KeyItem => ({
   id: `item-${Math.random().toString(36).substr(2, 9)}`,
-  uri: 'file:///mock/photo.jpg',
+  photoUri: 'file:///mock/photo.jpg',
+  originalAssetId: 'mock-asset-id',
   name: 'Test Photo',
   coordinates: { latitude: 37.7749, longitude: -122.4194 },
+  coordinatesRelativeToFloor: null,
   direction: null,
-  dateCreated: new Date().toISOString(),
+  floorNumber: 'unassigned',
+  notes: '',
   ...overrides,
 });
 

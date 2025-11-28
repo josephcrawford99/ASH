@@ -336,7 +336,6 @@ export default function KeyViewScreen() {
             return (
               <Pressable
                 onPress={() => handleFloorHeaderPress(floorNumber)}
-                delayPressIn={0}
                 style={({ pressed }) => [
                   styles.sectionHeader,
                   styles.sectionHeaderPressable,
