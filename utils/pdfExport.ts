@@ -346,10 +346,10 @@ function generateStyles(): string {
 
       .vector-number {
         position: absolute;
-        font-size: 12px;
+        font-size: 11px;
         font-weight: bold;
         color: #1A1A1A;
-        top: 58%;
+        top: 50%;
         left: 50%;
         transform: translate(-50%, -50%);
       }
