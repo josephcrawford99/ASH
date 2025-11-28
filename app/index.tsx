@@ -1,9 +1,11 @@
+import { useState } from 'react';
 import { View, FlatList, Pressable, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { usePhotoKeyStore } from '@/store/photoKeyStore';
 import { ThemedView } from '@/components/ThemedView';
 import { ThemedText } from '@/components/ThemedText';
+import { NewPhotoKeyModal } from '@/components/NewPhotoKeyModal';
 import { useTheme } from '@/hooks/useThemeColor';
 import { Spacing, BorderRadius } from '@/constants/spacing';
 import { PhotoKey } from '@/types';
@@ -11,6 +13,8 @@ import { PhotoKey } from '@/types';
 export default function Index() {
   const { colors } = useTheme();
   const photoKeys = usePhotoKeyStore((state) => state.photoKeys);
+  const addPhotoKey = usePhotoKeyStore((state) => state.addPhotoKey);
+  const [modalVisible, setModalVisible] = useState(false);
 
   // Sort by lastModified, newest first
   const sortedKeys = Object.values(photoKeys).sort(
@@ -18,8 +22,17 @@ export default function Index() {
   );
 
   const handleCreateKey = () => {
-    // TODO: Open new photo key modal
-    console.log('Create new photo key');
+    setModalVisible(true);
+  };
+
+  const handleModalClose = () => {
+    setModalVisible(false);
+  };
+
+  const handleCreate = (name: string) => {
+    const newId = addPhotoKey(name);
+    setModalVisible(false);
+    router.push(`/keyview/${newId}`);
   };
 
   const handleOpenKey = (id: string) => {
@@ -70,9 +83,16 @@ export default function Index() {
           keyExtractor={(item) => item.id}
           renderItem={renderItem}
           ListEmptyComponent={renderEmpty}
-          contentContainerStyle={sortedKeys.length === 0 ? styles.emptyList : styles.list}
+          contentContainerStyle={[styles.listContent, sortedKeys.length === 0 && styles.emptyList]}
+          style={styles.listContainer}
         />
       </SafeAreaView>
+
+      <NewPhotoKeyModal
+        visible={modalVisible}
+        onClose={handleModalClose}
+        onCreate={handleCreate}
+      />
     </ThemedView>
   );
 }
@@ -103,12 +123,16 @@ const styles = StyleSheet.create({
     fontWeight: '300',
     lineHeight: 32,
   },
-  list: {
+  listContainer: {
+    flex: 1,
+  },
+  listContent: {
+    flexGrow: 1,
     padding: Spacing.lg,
-    gap: Spacing.md,
   },
   emptyList: {
-    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   listItem: {
     padding: Spacing.lg,
@@ -122,9 +146,6 @@ const styles = StyleSheet.create({
     marginTop: Spacing.xs,
   },
   emptyContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
   },
   emptyText: {
     opacity: 0.5,

@@ -33,3 +33,11 @@ export const FontWeights = {
   semiBold: '600' as const,
   bold: '700' as const,
 };
+
+// Convenience object for component usage
+export const Typography = {
+  fonts: Fonts.primary,
+  secondary: Fonts.secondary,
+  sizes: FontSizes,
+  weights: FontWeights,
+};
