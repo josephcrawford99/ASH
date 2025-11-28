@@ -8,11 +8,12 @@ import { ThemedText } from '@/components/ThemedText';
 import { EditKeyModal, EditKeyModalRef } from '@/components/EditKeyModal';
 import { KeyItemListItem } from '@/components/KeyItemListItem';
 import { PhotoDetailModal, PhotoDetailModalRef } from '@/components/PhotoDetailModal';
+import { FloorplanModal, FloorplanModalRef } from '@/components/FloorplanModal';
 import { PhotoKeyMap } from '@/components/PhotoKeyMap';
 import { useTheme } from '@/hooks/useThemeColor';
 import { Spacing } from '@/constants/spacing';
-import { pickAndImportPhotos } from '@/utils/photoImport';
-import { KeyItem } from '@/types';
+import { pickAndImportPhotos, pickFloorplanImage } from '@/utils/photoImport';
+import { KeyItem, Coordinates } from '@/types';
 
 export default function KeyViewScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -23,10 +24,14 @@ export default function KeyViewScreen() {
   const addKeyItem = usePhotoKeyStore((state: PhotoKeyStore) => state.addKeyItem);
   const removeKeyItem = usePhotoKeyStore((state: PhotoKeyStore) => state.removeKeyItem);
   const moveKeyItemToFloor = usePhotoKeyStore((state: PhotoKeyStore) => state.moveKeyItemToFloor);
+  const addFloorplan = usePhotoKeyStore((state: PhotoKeyStore) => state.addFloorplan);
   const editModalRef = useRef<EditKeyModalRef>(null);
   const photoDetailRef = useRef<PhotoDetailModalRef>(null);
+  const floorplanModalRef = useRef<FloorplanModalRef>(null);
   const [isImporting, setIsImporting] = useState(false);
+  const [isPickingFloorplan, setIsPickingFloorplan] = useState(false);
   const [selectedPhoto, setSelectedPhoto] = useState<{ item: KeyItem; floorNumber: string } | null>(null);
+  const [selectedFloorForFloorplan, setSelectedFloorForFloorplan] = useState<string | null>(null);
 
   const handleOpenEditModal = useCallback(() => {
     editModalRef.current?.present();
@@ -96,6 +101,60 @@ export default function KeyViewScreen() {
     setSelectedPhoto(null);
   }, [id, selectedPhoto, removeKeyItem]);
 
+  // Calculate average GPS coordinates for a floor's photos
+  const getFloorCenterCoordinates = useCallback((floorNumber: string): Coordinates | null => {
+    if (!photoKey) return null;
+
+    const floor = photoKey.floors[floorNumber];
+    if (!floor) return null;
+
+    const photosWithCoords = floor.keyitems.filter(item => item.coordinates !== null);
+    if (photosWithCoords.length === 0) return null;
+
+    const avgLat = photosWithCoords.reduce((sum, item) => sum + item.coordinates!.latitude, 0) / photosWithCoords.length;
+    const avgLng = photosWithCoords.reduce((sum, item) => sum + item.coordinates!.longitude, 0) / photosWithCoords.length;
+
+    return { latitude: avgLat, longitude: avgLng };
+  }, [photoKey]);
+
+  // Handle floor header tap to open floorplan modal
+  const handleFloorHeaderPress = useCallback((floorNumber: string) => {
+    if (floorNumber === 'unassigned') return;
+    setSelectedFloorForFloorplan(floorNumber);
+    floorplanModalRef.current?.present();
+  }, []);
+
+  // Handle picking a new floorplan image
+  const handlePickFloorplanImage = useCallback(async () => {
+    if (!id || !selectedFloorForFloorplan || isPickingFloorplan) return;
+
+    setIsPickingFloorplan(true);
+    try {
+      const centerCoords = getFloorCenterCoordinates(selectedFloorForFloorplan);
+      const result = await pickFloorplanImage(selectedFloorForFloorplan, centerCoords);
+
+      if (!result.success) {
+        Alert.alert('Error', result.error || 'Failed to pick floorplan');
+        return;
+      }
+
+      if (result.floorplan) {
+        addFloorplan(id, selectedFloorForFloorplan, result.floorplan);
+      }
+    } catch {
+      Alert.alert('Error', 'Failed to add floorplan');
+    } finally {
+      setIsPickingFloorplan(false);
+      setSelectedFloorForFloorplan(null);
+    }
+  }, [id, selectedFloorForFloorplan, isPickingFloorplan, addFloorplan, getFloorCenterCoordinates]);
+
+  // Get the current floorplan for the selected floor
+  const selectedFloorFloorplan = useMemo(() => {
+    if (!photoKey || !selectedFloorForFloorplan) return null;
+    return photoKey.floors[selectedFloorForFloorplan]?.floorplan ?? null;
+  }, [photoKey, selectedFloorForFloorplan]);
+
   // Set header title to uppercase photo key name
   useLayoutEffect(() => {
     if (photoKey) {
@@ -153,6 +212,7 @@ export default function KeyViewScreen() {
       .map(([floorNumber, floor]) => ({
         title: floorNumber === 'unassigned' ? 'Unassigned' : `Floor ${floorNumber}`,
         floorNumber,
+        hasFloorplan: floor.floorplan !== null,
         data: floor.keyitems,
       }));
   }, [photoKey]);
@@ -231,11 +291,42 @@ export default function KeyViewScreen() {
               />
             );
           }}
-          renderSectionHeader={({ section: { title } }) => (
-            <View style={[styles.sectionHeader, { backgroundColor: colors.background }]}>
-              <ThemedText style={styles.sectionHeaderText}>{title}</ThemedText>
-            </View>
-          )}
+          renderSectionHeader={({ section: { title, floorNumber, hasFloorplan } }) => {
+            const isUnassigned = floorNumber === 'unassigned';
+
+            if (isUnassigned) {
+              // Unassigned section is not pressable
+              return (
+                <View style={[styles.sectionHeader, { backgroundColor: colors.background }]}>
+                  <ThemedText style={styles.sectionHeaderText}>{title}</ThemedText>
+                </View>
+              );
+            }
+
+            // Floor sections are pressable to add/manage floorplan
+            return (
+              <Pressable
+                onPress={() => handleFloorHeaderPress(floorNumber)}
+                delayPressIn={0}
+                style={({ pressed }) => [
+                  styles.sectionHeader,
+                  styles.sectionHeaderPressable,
+                  { backgroundColor: colors.background },
+                  pressed && { opacity: 0.6 },
+                ]}
+              >
+                <ThemedText style={styles.sectionHeaderText}>{title}</ThemedText>
+                <View style={styles.sectionHeaderRight}>
+                  {hasFloorplan ? (
+                    <Ionicons name="image" size={16} color={colors.text} style={{ opacity: 0.6 }} />
+                  ) : (
+                    <ThemedText style={styles.sectionHeaderHint}>Tap to add floorplan</ThemedText>
+                  )}
+                  <Ionicons name="chevron-forward" size={16} color={colors.text} style={{ opacity: 0.4 }} />
+                </View>
+              </Pressable>
+            );
+          }}
           ItemSeparatorComponent={() => (
             <View style={[styles.separator, { backgroundColor: colors.border }]} />
           )}
@@ -255,6 +346,13 @@ export default function KeyViewScreen() {
         item={selectedPhoto?.item ?? null}
         onSave={handleSaveFloor}
         onRemove={handleRemovePhoto}
+      />
+
+      <FloorplanModal
+        ref={floorplanModalRef}
+        floorNumber={selectedFloorForFloorplan ?? ''}
+        floorplan={selectedFloorFloorplan}
+        onPickImage={handlePickFloorplanImage}
       />
     </ThemedView>
   );
@@ -291,11 +389,25 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.sm,
   },
+  sectionHeaderPressable: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
   sectionHeaderText: {
     fontSize: 14,
     fontWeight: '600',
     opacity: 0.6,
     textTransform: 'uppercase',
+  },
+  sectionHeaderRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+  },
+  sectionHeaderHint: {
+    fontSize: 12,
+    opacity: 0.4,
   },
   separator: {
     height: StyleSheet.hairlineWidth,

@@ -12,7 +12,7 @@ interface PhotoKeyMapProps {
 }
 
 export function PhotoKeyMap({ items, onMarkerPress, height = 250 }: PhotoKeyMapProps) {
-  const { colorScheme } = useTheme();
+  const { theme } = useTheme();
   const mapRef = useRef<MapView>(null);
 
   // Filter items with valid GPS coordinates
@@ -75,7 +75,7 @@ export function PhotoKeyMap({ items, onMarkerPress, height = 250 }: PhotoKeyMapP
         showsUserLocation={false}
         showsMyLocationButton={false}
         showsCompass={true}
-        userInterfaceStyle={colorScheme}
+        userInterfaceStyle={theme}
       >
         {itemsWithCoordinates.map((entry) => (
           <Marker

@@ -133,6 +133,14 @@ export const usePhotoKeyStore = create<PhotoKeyStore>()(
           const floor = photoKey.floors[floorNumber];
           if (!floor) return state;
 
+          const updatedKeyitems = floor.keyitems.filter((item) => item.id !== itemId);
+
+          // Auto-remove floorplan if floor becomes empty (except unassigned)
+          const shouldRemoveFloorplan =
+            floorNumber !== 'unassigned' &&
+            updatedKeyitems.length === 0 &&
+            floor.floorplan !== null;
+
           return {
             photoKeys: {
               ...state.photoKeys,
@@ -142,7 +150,8 @@ export const usePhotoKeyStore = create<PhotoKeyStore>()(
                   ...photoKey.floors,
                   [floorNumber]: {
                     ...floor,
-                    keyitems: floor.keyitems.filter((item) => item.id !== itemId),
+                    keyitems: updatedKeyitems,
+                    floorplan: shouldRemoveFloorplan ? null : floor.floorplan,
                   },
                 },
               }),
@@ -195,6 +204,14 @@ export const usePhotoKeyStore = create<PhotoKeyStore>()(
 
           const updatedItem = { ...item, floorNumber: toFloor };
 
+          const updatedSourceKeyitems = sourceFloor.keyitems.filter((i) => i.id !== itemId);
+
+          // Auto-remove floorplan if source floor becomes empty (except unassigned)
+          const shouldRemoveSourceFloorplan =
+            fromFloor !== 'unassigned' &&
+            updatedSourceKeyitems.length === 0 &&
+            sourceFloor.floorplan !== null;
+
           return {
             photoKeys: {
               ...state.photoKeys,
@@ -204,7 +221,8 @@ export const usePhotoKeyStore = create<PhotoKeyStore>()(
                   ...floors,
                   [fromFloor]: {
                     ...sourceFloor,
-                    keyitems: sourceFloor.keyitems.filter((i) => i.id !== itemId),
+                    keyitems: updatedSourceKeyitems,
+                    floorplan: shouldRemoveSourceFloorplan ? null : sourceFloor.floorplan,
                   },
                   [toFloor]: {
                     ...targetFloor,

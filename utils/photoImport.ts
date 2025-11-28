@@ -1,5 +1,5 @@
 import * as ImagePicker from 'expo-image-picker';
-import { KeyItem, Coordinates } from '@/types';
+import { KeyItem, Coordinates, Floorplan } from '@/types';
 
 function generateId(): string {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
@@ -116,6 +116,72 @@ export async function pickAndImportPhotos(): Promise<PhotoImportResult> {
     return {
       success: false,
       items: [],
+      error: error instanceof Error ? error.message : 'Unknown error',
+    };
+  }
+}
+
+export interface FloorplanPickResult {
+  success: boolean;
+  floorplan?: Floorplan;
+  error?: string;
+}
+
+export async function pickFloorplanImage(
+  floorNumber: string,
+  centerCoordinates: Coordinates | null
+): Promise<FloorplanPickResult> {
+  try {
+    // Request permission first
+    const hasPermission = await requestMediaLibraryPermission();
+    if (!hasPermission) {
+      return {
+        success: false,
+        error: 'Photo library permission denied',
+      };
+    }
+
+    // Open picker - single select for floorplan
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsMultipleSelection: false,
+      quality: 1,
+    });
+
+    if (result.canceled || !result.assets || result.assets.length === 0) {
+      return {
+        success: true, // User cancelled, not an error
+      };
+    }
+
+    const asset = result.assets[0];
+    const id = generateId();
+
+    // Default center coordinates if none provided
+    const defaultCenter: Coordinates = centerCoordinates || {
+      latitude: 0,
+      longitude: 0,
+    };
+
+    const floorplan: Floorplan = {
+      id,
+      imageUri: asset.uri,
+      centerCoordinates: defaultCenter,
+      offsetX: 0,
+      offsetY: 0,
+      rotation: 0,
+      scale: 1,
+      floorNumber,
+    };
+
+    return {
+      success: true,
+      floorplan,
+    };
+  } catch (error) {
+    console.error('Floorplan pick error:', error);
+    return {
+      success: false,
       error: error instanceof Error ? error.message : 'Unknown error',
     };
   }
