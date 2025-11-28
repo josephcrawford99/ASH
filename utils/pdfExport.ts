@@ -4,7 +4,6 @@ import { PhotoKey, KeyItem } from '@/types';
 
 interface PdfExportResult {
   success: boolean;
-  uri?: string;
   error?: string;
 }
 
@@ -306,7 +305,10 @@ export async function exportPhotoKeyToPdf(photoKey: PhotoKey): Promise<PdfExport
       base64: false,
     });
 
-    return { success: true, uri };
+    // Open iOS print dialog with preview and share options
+    await Print.printAsync({ uri });
+
+    return { success: true };
   } catch (error) {
     console.error('PDF export error:', error);
     return {
