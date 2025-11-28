@@ -1,5 +1,5 @@
 import * as Print from 'expo-print';
-import * as FileSystem from 'expo-file-system';
+import { readAsStringAsync, EncodingType } from 'expo-file-system';
 import { Asset } from 'expo-asset';
 import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
 import { PhotoKey, KeyItem, Floorplan, Coordinates } from '@/types';
@@ -17,8 +17,8 @@ async function loadVectorAsset(): Promise<string | null> {
     await asset.downloadAsync();
 
     if (asset.localUri) {
-      const base64 = await FileSystem.readAsStringAsync(asset.localUri, {
-        encoding: FileSystem.EncodingType.Base64,
+      const base64 = await readAsStringAsync(asset.localUri, {
+        encoding: EncodingType.Base64,
       });
       vectorAssetBase64 = `data:image/png;base64,${base64}`;
       return vectorAssetBase64;
