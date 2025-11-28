@@ -11,6 +11,7 @@ import { PhotoDetailModal, PhotoDetailModalRef } from '@/components/PhotoDetailM
 import { FloorplanModal, FloorplanModalRef } from '@/components/FloorplanModal';
 import { FloorplanAdjustmentView } from '@/components/FloorplanAdjustmentView';
 import { PhotoKeyMap } from '@/components/PhotoKeyMap';
+import { PdfViewer } from '@/components/PdfViewer';
 import { useTheme } from '@/hooks/useThemeColor';
 import { Spacing } from '@/constants/spacing';
 import { pickAndImportPhotos, pickFloorplanImage } from '@/utils/photoImport';
@@ -34,6 +35,8 @@ export default function KeyViewScreen() {
   const [isImporting, setIsImporting] = useState(false);
   const [isPickingFloorplan, setIsPickingFloorplan] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+  const [pdfUri, setPdfUri] = useState<string | null>(null);
+  const [showPdfViewer, setShowPdfViewer] = useState(false);
   const [selectedPhoto, setSelectedPhoto] = useState<{ item: KeyItem; floorNumber: string } | null>(null);
   const [selectedFloorForFloorplan, setSelectedFloorForFloorplan] = useState<string | null>(null);
   const [showFloorplanAdjustment, setShowFloorplanAdjustment] = useState(false);
@@ -195,6 +198,9 @@ export default function KeyViewScreen() {
       const result = await exportPhotoKeyToPdf(photoKey);
       if (!result.success) {
         Alert.alert('Export Failed', result.error || 'Failed to export PDF');
+      } else if (result.uri) {
+        setPdfUri(result.uri);
+        setShowPdfViewer(true);
       }
     } catch {
       Alert.alert('Export Failed', 'An error occurred while exporting');
@@ -202,6 +208,12 @@ export default function KeyViewScreen() {
       setIsExporting(false);
     }
   }, [photoKey, isExporting]);
+
+  // Handle closing PDF viewer
+  const handleClosePdfViewer = useCallback(() => {
+    setShowPdfViewer(false);
+    setPdfUri(null);
+  }, []);
 
   // Set header title to uppercase photo key name
   useLayoutEffect(() => {
@@ -429,6 +441,15 @@ export default function KeyViewScreen() {
           keyitems={selectedFloorKeyItems}
           onSave={handleSaveAdjustment}
           onCancel={handleCancelAdjustment}
+        />
+      )}
+
+      {pdfUri && (
+        <PdfViewer
+          visible={showPdfViewer}
+          uri={pdfUri}
+          title={photoKey.name}
+          onClose={handleClosePdfViewer}
         />
       )}
     </ThemedView>
