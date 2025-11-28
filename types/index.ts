@@ -28,10 +28,8 @@ export interface Floorplan {
   id: string;
   imageUri: string;
   centerCoordinates: Coordinates;
-  offsetX: number;
-  offsetY: number;
   rotation: number;  // Degrees
-  scale: number;     // Multiplier
+  scale: number;     // Multiplier for floorplan size (1.0 = covers marker bounds)
   floorNumber: string;
 }
 

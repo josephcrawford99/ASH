@@ -15,6 +15,7 @@ interface FloorplanModalProps {
   floorNumber: string;
   floorplan: Floorplan | null;
   onPickImage: () => void;
+  onAdjustPosition?: () => void;
   onDismiss?: () => void;
 }
 
@@ -24,7 +25,7 @@ export interface FloorplanModalRef {
 }
 
 function FloorplanModalComponent(
-  { floorNumber, floorplan, onPickImage, onDismiss }: FloorplanModalProps,
+  { floorNumber, floorplan, onPickImage, onAdjustPosition, onDismiss }: FloorplanModalProps,
   ref: React.ForwardedRef<FloorplanModalRef>
 ) {
   const { colors } = useTheme();
@@ -62,6 +63,14 @@ function FloorplanModalComponent(
       onPickImage();
     }, 300);
   }, [onPickImage]);
+
+  const handleAdjustPosition = useCallback(() => {
+    bottomSheetRef.current?.dismiss();
+    // Small delay to let the modal dismiss before opening adjustment view
+    setTimeout(() => {
+      onAdjustPosition?.();
+    }, 300);
+  }, [onAdjustPosition]);
 
   const title = `Floor ${floorNumber} Floorplan`;
 
@@ -106,16 +115,31 @@ function FloorplanModalComponent(
         )}
 
         <View style={styles.actions}>
+          {floorplan && onAdjustPosition && (
+            <Pressable
+              onPress={handleAdjustPosition}
+              style={({ pressed }) => [
+                styles.pickButton,
+                { backgroundColor: colors.text },
+                pressed && { opacity: 0.7 },
+              ]}
+            >
+              <Ionicons name="move" size={20} color={colors.background} style={styles.buttonIcon} />
+              <ThemedText style={[styles.pickButtonText, { color: colors.background }]}>
+                Adjust Position
+              </ThemedText>
+            </Pressable>
+          )}
           <Pressable
             onPress={handlePickImage}
             style={({ pressed }) => [
-              styles.pickButton,
-              { backgroundColor: colors.text },
+              styles.secondaryButton,
+              { borderColor: colors.text },
               pressed && { opacity: 0.7 },
             ]}
           >
-            <Ionicons name="image" size={20} color={colors.background} style={styles.buttonIcon} />
-            <ThemedText style={[styles.pickButtonText, { color: colors.background }]}>
+            <Ionicons name="image" size={20} color={colors.text} style={styles.buttonIcon} />
+            <ThemedText style={[styles.secondaryButtonText, { color: colors.text }]}>
               {floorplan ? 'Replace Image' : 'Pick Image'}
             </ThemedText>
           </Pressable>
@@ -174,6 +198,18 @@ const styles = StyleSheet.create({
     marginRight: Spacing.sm,
   },
   pickButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  secondaryButton: {
+    flexDirection: 'row',
+    padding: Spacing.md,
+    borderRadius: BorderRadius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+  },
+  secondaryButtonText: {
     fontSize: 16,
     fontWeight: '600',
   },

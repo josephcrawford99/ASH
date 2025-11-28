@@ -9,6 +9,7 @@ import { EditKeyModal, EditKeyModalRef } from '@/components/EditKeyModal';
 import { KeyItemListItem } from '@/components/KeyItemListItem';
 import { PhotoDetailModal, PhotoDetailModalRef } from '@/components/PhotoDetailModal';
 import { FloorplanModal, FloorplanModalRef } from '@/components/FloorplanModal';
+import { FloorplanAdjustmentView } from '@/components/FloorplanAdjustmentView';
 import { PhotoKeyMap } from '@/components/PhotoKeyMap';
 import { useTheme } from '@/hooks/useThemeColor';
 import { Spacing } from '@/constants/spacing';
@@ -25,6 +26,7 @@ export default function KeyViewScreen() {
   const removeKeyItem = usePhotoKeyStore((state: PhotoKeyStore) => state.removeKeyItem);
   const moveKeyItemToFloor = usePhotoKeyStore((state: PhotoKeyStore) => state.moveKeyItemToFloor);
   const addFloorplan = usePhotoKeyStore((state: PhotoKeyStore) => state.addFloorplan);
+  const updateFloorplan = usePhotoKeyStore((state: PhotoKeyStore) => state.updateFloorplan);
   const editModalRef = useRef<EditKeyModalRef>(null);
   const photoDetailRef = useRef<PhotoDetailModalRef>(null);
   const floorplanModalRef = useRef<FloorplanModalRef>(null);
@@ -32,6 +34,7 @@ export default function KeyViewScreen() {
   const [isPickingFloorplan, setIsPickingFloorplan] = useState(false);
   const [selectedPhoto, setSelectedPhoto] = useState<{ item: KeyItem; floorNumber: string } | null>(null);
   const [selectedFloorForFloorplan, setSelectedFloorForFloorplan] = useState<string | null>(null);
+  const [showFloorplanAdjustment, setShowFloorplanAdjustment] = useState(false);
 
   const handleOpenEditModal = useCallback(() => {
     editModalRef.current?.present();
@@ -154,6 +157,32 @@ export default function KeyViewScreen() {
     if (!photoKey || !selectedFloorForFloorplan) return null;
     return photoKey.floors[selectedFloorForFloorplan]?.floorplan ?? null;
   }, [photoKey, selectedFloorForFloorplan]);
+
+  // Get the key items for the selected floor
+  const selectedFloorKeyItems = useMemo(() => {
+    if (!photoKey || !selectedFloorForFloorplan) return [];
+    return photoKey.floors[selectedFloorForFloorplan]?.keyitems ?? [];
+  }, [photoKey, selectedFloorForFloorplan]);
+
+  // Handle opening the floorplan adjustment view
+  const handleOpenAdjustment = useCallback(() => {
+    setShowFloorplanAdjustment(true);
+  }, []);
+
+  // Handle saving floorplan adjustments
+  const handleSaveAdjustment = useCallback(
+    (updates: { centerCoordinates: { latitude: number; longitude: number }; rotation: number; scale: number }) => {
+      if (!id || !selectedFloorForFloorplan) return;
+      updateFloorplan(id, selectedFloorForFloorplan, updates);
+      setShowFloorplanAdjustment(false);
+    },
+    [id, selectedFloorForFloorplan, updateFloorplan]
+  );
+
+  // Handle canceling floorplan adjustment
+  const handleCancelAdjustment = useCallback(() => {
+    setShowFloorplanAdjustment(false);
+  }, []);
 
   // Set header title to uppercase photo key name
   useLayoutEffect(() => {
@@ -353,7 +382,18 @@ export default function KeyViewScreen() {
         floorNumber={selectedFloorForFloorplan ?? ''}
         floorplan={selectedFloorFloorplan}
         onPickImage={handlePickFloorplanImage}
+        onAdjustPosition={selectedFloorFloorplan ? handleOpenAdjustment : undefined}
       />
+
+      {selectedFloorFloorplan && (
+        <FloorplanAdjustmentView
+          visible={showFloorplanAdjustment}
+          floorplan={selectedFloorFloorplan}
+          keyitems={selectedFloorKeyItems}
+          onSave={handleSaveAdjustment}
+          onCancel={handleCancelAdjustment}
+        />
+      )}
     </ThemedView>
   );
 }

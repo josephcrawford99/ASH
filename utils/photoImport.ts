@@ -167,10 +167,8 @@ export async function pickFloorplanImage(
       id,
       imageUri: asset.uri,
       centerCoordinates: defaultCenter,
-      offsetX: 0,
-      offsetY: 0,
       rotation: 0,
-      scale: 1,
+      scale: 1.0, // Default 1x multiplier
       floorNumber,
     };
 
