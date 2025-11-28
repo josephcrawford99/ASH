@@ -14,6 +14,7 @@ import { PhotoKeyMap } from '@/components/PhotoKeyMap';
 import { useTheme } from '@/hooks/useThemeColor';
 import { Spacing } from '@/constants/spacing';
 import { pickAndImportPhotos, pickFloorplanImage } from '@/utils/photoImport';
+import { exportPhotoKeyToPdf } from '@/utils/pdfExport';
 import { KeyItem, Coordinates } from '@/types';
 
 export default function KeyViewScreen() {
@@ -32,6 +33,7 @@ export default function KeyViewScreen() {
   const floorplanModalRef = useRef<FloorplanModalRef>(null);
   const [isImporting, setIsImporting] = useState(false);
   const [isPickingFloorplan, setIsPickingFloorplan] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
   const [selectedPhoto, setSelectedPhoto] = useState<{ item: KeyItem; floorNumber: string } | null>(null);
   const [selectedFloorForFloorplan, setSelectedFloorForFloorplan] = useState<string | null>(null);
   const [showFloorplanAdjustment, setShowFloorplanAdjustment] = useState(false);
@@ -183,6 +185,23 @@ export default function KeyViewScreen() {
   const handleCancelAdjustment = useCallback(() => {
     setShowFloorplanAdjustment(false);
   }, []);
+
+  // Handle PDF export
+  const handleExportPdf = useCallback(async () => {
+    if (!photoKey || isExporting) return;
+
+    setIsExporting(true);
+    try {
+      const result = await exportPhotoKeyToPdf(photoKey);
+      if (!result.success) {
+        Alert.alert('Export Failed', result.error || 'Failed to export PDF');
+      }
+    } catch {
+      Alert.alert('Export Failed', 'An error occurred while exporting');
+    } finally {
+      setIsExporting(false);
+    }
+  }, [photoKey, isExporting]);
 
   // Set header title to uppercase photo key name
   useLayoutEffect(() => {
@@ -360,6 +379,25 @@ export default function KeyViewScreen() {
           )}
           stickySectionHeadersEnabled={true}
           contentContainerStyle={styles.listContent}
+          ListFooterComponent={
+            <View style={styles.exportButtonContainer}>
+              <Pressable
+                onPress={handleExportPdf}
+                disabled={isExporting}
+                style={({ pressed }) => [
+                  styles.exportPdfButton,
+                  { backgroundColor: colors.text },
+                  pressed && { opacity: 0.7 },
+                  isExporting && { opacity: 0.5 },
+                ]}
+              >
+                <Ionicons name="document-text-outline" size={20} color={colors.background} />
+                <ThemedText style={[styles.exportPdfButtonText, { color: colors.background }]}>
+                  {isExporting ? 'Generating PDF...' : 'View Photo Key PDF'}
+                </ThemedText>
+              </Pressable>
+            </View>
+          }
         />
       )}
 
@@ -409,6 +447,23 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.md,
+  },
+  exportButtonContainer: {
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.xl,
+  },
+  exportPdfButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.sm,
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    borderRadius: 12,
+  },
+  exportPdfButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
   },
   plusButton: {
     width: 30,
