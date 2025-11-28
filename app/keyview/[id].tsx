@@ -8,6 +8,7 @@ import { ThemedText } from '@/components/ThemedText';
 import { EditKeyModal, EditKeyModalRef } from '@/components/EditKeyModal';
 import { KeyItemListItem } from '@/components/KeyItemListItem';
 import { PhotoDetailModal, PhotoDetailModalRef } from '@/components/PhotoDetailModal';
+import { PhotoKeyMap } from '@/components/PhotoKeyMap';
 import { useTheme } from '@/hooks/useThemeColor';
 import { Spacing } from '@/constants/spacing';
 import { pickAndImportPhotos } from '@/utils/photoImport';
@@ -169,6 +170,26 @@ export default function KeyViewScreen() {
     return sections.reduce((sum, section) => sum + section.data.length, 0);
   }, [sections]);
 
+  // Build flat list of items with indices for the map
+  const mapItems = useMemo(() => {
+    const items: { item: KeyItem; index: number; floorNumber: string }[] = [];
+    let globalIndex = 0;
+
+    for (const section of sections) {
+      for (const item of section.data) {
+        items.push({ item, index: globalIndex, floorNumber: section.floorNumber });
+        globalIndex++;
+      }
+    }
+
+    return items;
+  }, [sections]);
+
+  // Check if any items have GPS coordinates
+  const hasGpsItems = useMemo(() => {
+    return mapItems.some((entry) => entry.item.coordinates !== null);
+  }, [mapItems]);
+
   if (!photoKey) {
     return (
       <ThemedView style={styles.container}>
@@ -190,6 +211,15 @@ export default function KeyViewScreen() {
         <SectionList
           sections={sections}
           keyExtractor={(item) => item.id}
+          ListHeaderComponent={
+            hasGpsItems ? (
+              <PhotoKeyMap
+                items={mapItems}
+                onMarkerPress={handlePhotoPress}
+                height={250}
+              />
+            ) : null
+          }
           renderItem={({ item, index, section }) => {
             const sectionIndex = sections.findIndex((s) => s.floorNumber === section.floorNumber);
             const globalIndex = getGlobalIndex(sectionIndex, index);

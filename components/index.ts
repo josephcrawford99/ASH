@@ -5,3 +5,5 @@ export * from './EditKeyModal';
 export * from './ActionMenu';
 export * from './KeyItemListItem';
 export * from './PhotoDetailModal';
+export * from './KeyVector';
+export * from './PhotoKeyMap';
