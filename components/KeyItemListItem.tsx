@@ -1,4 +1,6 @@
+import { useState } from 'react';
 import { StyleSheet, View, Pressable, Image } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { ThemedText } from './ThemedText';
 import { useTheme } from '@/hooks/useThemeColor';
 import { Spacing, BorderRadius } from '@/constants/spacing';
@@ -12,6 +14,7 @@ interface KeyItemListItemProps {
 
 export function KeyItemListItem({ item, index, onPress }: KeyItemListItemProps) {
   const { colors } = useTheme();
+  const [imageError, setImageError] = useState(false);
 
   return (
     <Pressable
@@ -25,11 +28,18 @@ export function KeyItemListItem({ item, index, onPress }: KeyItemListItemProps) 
       <View style={styles.indexContainer}>
         <ThemedText style={styles.indexText}>{index + 1}</ThemedText>
       </View>
-      <Image
-        source={{ uri: item.photoUri }}
-        style={styles.thumbnail}
-        resizeMode="cover"
-      />
+      {imageError ? (
+        <View style={[styles.thumbnail, styles.errorPlaceholder]}>
+          <Ionicons name="image-outline" size={24} color={colors.icon} />
+        </View>
+      ) : (
+        <Image
+          source={{ uri: item.photoUri }}
+          style={styles.thumbnail}
+          resizeMode="cover"
+          onError={() => setImageError(true)}
+        />
+      )}
       <View style={styles.info}>
         <ThemedText style={styles.name} numberOfLines={1}>
           {item.name}
@@ -68,6 +78,10 @@ const styles = StyleSheet.create({
     height: 56,
     borderRadius: BorderRadius.sm,
     backgroundColor: '#333',
+  },
+  errorPlaceholder: {
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   info: {
     flex: 1,

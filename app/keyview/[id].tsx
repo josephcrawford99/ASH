@@ -235,6 +235,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   listContent: {
+    flexGrow: 1,
     paddingBottom: Spacing.xl,
   },
   headerRight: {

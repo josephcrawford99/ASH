@@ -1,5 +1,6 @@
 import { useCallback, useMemo, forwardRef, useImperativeHandle, useRef, useState, useEffect } from 'react';
 import { View, StyleSheet, Pressable, Alert, Image, TextInput } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import {
   BottomSheetModal,
   BottomSheetBackdrop,
@@ -28,13 +29,15 @@ function PhotoDetailModalComponent(
   const { colors } = useTheme();
   const bottomSheetRef = useRef<BottomSheetModal>(null);
   const [floorInput, setFloorInput] = useState('');
+  const [imageError, setImageError] = useState(false);
 
   const snapPoints = useMemo(() => ['70%'], []);
 
-  // Reset floor input when item changes
+  // Reset floor input and image error when item changes
   useEffect(() => {
     if (item) {
       setFloorInput(item.floorNumber === 'unassigned' ? '' : item.floorNumber);
+      setImageError(false);
     }
   }, [item]);
 
@@ -97,11 +100,21 @@ function PhotoDetailModalComponent(
           {item.name}
         </ThemedText>
 
-        <Image
-          source={{ uri: item.photoUri }}
-          style={styles.image}
-          resizeMode="contain"
-        />
+        {imageError ? (
+          <View style={[styles.image, styles.errorPlaceholder]}>
+            <Ionicons name="image-outline" size={48} color={colors.icon} />
+            <ThemedText style={[styles.errorText, { color: colors.icon }]}>
+              Photo unavailable
+            </ThemedText>
+          </View>
+        ) : (
+          <Image
+            source={{ uri: item.photoUri }}
+            style={styles.image}
+            resizeMode="contain"
+            onError={() => setImageError(true)}
+          />
+        )}
 
         <View style={styles.infoSection}>
           <View style={styles.infoRow}>
@@ -200,6 +213,14 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.md,
     backgroundColor: '#333',
     marginBottom: Spacing.lg,
+  },
+  errorPlaceholder: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
+  errorText: {
+    fontSize: 14,
   },
   infoSection: {
     gap: Spacing.md,
