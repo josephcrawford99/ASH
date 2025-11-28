@@ -41,4 +41,8 @@ app-example
 # generated native folders
 /ios
 /android
+# Claude-specific files
 app-spec.txt
+CLAUDE.md
+feature_list.json
+claude-progress.txt

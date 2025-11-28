@@ -1,50 +1,83 @@
-# Welcome to your Expo app 👋
+# ASH - Architectural Site History
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+A React Native Expo app for iOS that enables architects, contractors, and historic preservation consultants to create photo keys - visual documentation maps that show where photos were taken within a building.
 
-## Get started
+## Features
 
-1. Install dependencies
+- Create and manage photo keys
+- Import photos from iOS camera roll with EXIF metadata extraction
+- Organize photos by floor
+- View photo locations on Apple Maps with directional markers
+- Upload and position floor plans
+- Export comprehensive PDF reports
 
-   ```bash
-   npm install
-   ```
+## Tech Stack
 
-2. Start the app
+- React Native with Expo SDK 54
+- Expo Router (file-based routing)
+- TypeScript with strict mode
+- Zustand for state management
+- react-native-maps (Apple Maps)
+- @gorhom/bottom-sheet for modals
 
-   ```bash
-   npx expo start
-   ```
+## Quick Start
 
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
+Run the setup script to install dependencies, run tests, and start the dev server:
 
 ```bash
-npm run reset-project
+./init.sh
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+Or manually:
 
-## Learn more
+```bash
+# Install dependencies
+npm install
 
-To learn more about developing your project with Expo, look at the following resources:
+# Run tests
+npm test
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+# Start dev server in tunnel mode (for Expo Go)
+npm run start:tunnel
+```
 
-## Join the community
+## Development
 
-Join our community of developers creating universal apps.
+```bash
+# Start dev server
+npm start
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+# Start with tunnel mode (for physical device testing)
+npm run start:tunnel
+
+# Run tests
+npm test
+
+# Run tests in watch mode
+npm test:watch
+
+# Lint code
+npm run lint
+```
+
+## Testing on Physical Device
+
+1. Install [Expo Go](https://expo.dev/go) on your iOS device
+2. Run `npm run start:tunnel`
+3. Scan the QR code with your device camera
+
+## Project Structure
+
+```
+app/                    # Expo Router screens
+  index.tsx            # Main screen (photo keys list)
+  keyview/[id].tsx     # Photo key detail view
+components/            # Reusable UI components
+constants/             # Theme colors, typography
+hooks/                 # Custom React hooks
+store/                 # Zustand state management
+```
+
+## License
+
+Private - All rights reserved
