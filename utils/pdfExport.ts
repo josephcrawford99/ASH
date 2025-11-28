@@ -1,5 +1,5 @@
 import * as Print from 'expo-print';
-import * as FileSystem from 'expo-file-system';
+import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
 import { PhotoKey, KeyItem } from '@/types';
 
 interface PdfExportResult {
@@ -31,31 +31,17 @@ function formatDirection(direction: number): string {
 // Convert image URI to base64 for embedding in HTML
 async function getImageBase64(uri: string): Promise<string | null> {
   try {
-    // Check if file exists first
-    const fileInfo = await FileSystem.getInfoAsync(uri);
-    if (!fileInfo.exists) {
-      console.warn('Image file does not exist:', uri);
-      return null;
-    }
+    // Use expo-image-manipulator for reliable base64 conversion
+    // This handles HEIC/HEIF and ensures consistent JPEG output
+    const result = await manipulateAsync(
+      uri,
+      [{ resize: { width: 800 } }], // Resize to reduce memory usage
+      { base64: true, format: SaveFormat.JPEG, compress: 0.8 }
+    );
 
-    // Read as base64
-    const base64 = await FileSystem.readAsStringAsync(uri, {
-      encoding: FileSystem.EncodingType.Base64,
-    });
-
-    // Determine mime type from extension
-    const ext = uri.split('.').pop()?.toLowerCase();
-    let mimeType = 'image/jpeg';
-    if (ext === 'png') mimeType = 'image/png';
-    else if (ext === 'heic' || ext === 'heif') mimeType = 'image/jpeg'; // HEIC converted by picker
-
-    return `data:${mimeType};base64,${base64}`;
+    return `data:image/jpeg;base64,${result.base64}`;
   } catch (error) {
-    console.warn('Failed to read image for PDF:', uri, error);
-    // Try using the URI directly as fallback (works for some file:// URIs)
-    if (uri.startsWith('file://')) {
-      return uri;
-    }
+    console.warn('Failed to process image for PDF:', uri, error);
     return null;
   }
 }
