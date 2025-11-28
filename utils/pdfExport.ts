@@ -13,7 +13,7 @@ async function loadVectorAsset(): Promise<string | null> {
 
   try {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const asset = Asset.fromModule(require('@/assets/vector.png'));
+    const asset = Asset.fromModule(require('../assets/vector.png'));
     await asset.downloadAsync();
 
     if (asset.localUri) {
