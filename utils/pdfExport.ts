@@ -1,6 +1,6 @@
 import * as Print from 'expo-print';
 import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
-import { PhotoKey, KeyItem } from '@/types';
+import { PhotoKey, KeyItem, Floorplan, Coordinates } from '@/types';
 
 interface PdfExportResult {
   success: boolean;
@@ -31,19 +31,97 @@ function formatDirection(direction: number): string {
 // Convert image URI to base64 for embedding in HTML
 async function getImageBase64(uri: string): Promise<string | null> {
   try {
-    // Use expo-image-manipulator for reliable base64 conversion
-    // This handles HEIC/HEIF and ensures consistent JPEG output
     const result = await manipulateAsync(
       uri,
-      [{ resize: { width: 800 } }], // Resize to reduce memory usage
+      [{ resize: { width: 800 } }],
       { base64: true, format: SaveFormat.JPEG, compress: 0.8 }
     );
-
     return `data:image/jpeg;base64,${result.base64}`;
   } catch (error) {
     console.warn('Failed to process image for PDF:', uri, error);
     return null;
   }
+}
+
+// Generate SVG for a KeyVector marker
+function generateVectorSvg(number: number, direction: number | null, size: number = 36): string {
+  const halfSize = size / 2;
+  const circleRadius = halfSize * 0.7;
+  const arrowLength = halfSize * 0.9;
+
+  // Calculate arrow rotation
+  const arrowRotation = direction !== null ? direction - 90 : 0; // Adjust for SVG coordinate system
+
+  let arrowSvg = '';
+  if (direction !== null) {
+    arrowSvg = `
+      <g transform="rotate(${arrowRotation}, ${halfSize}, ${halfSize})">
+        <line x1="${halfSize}" y1="${halfSize}" x2="${halfSize + arrowLength}" y2="${halfSize}"
+              stroke="#1A1A1A" stroke-width="2" stroke-linecap="round"/>
+        <polygon points="${halfSize + arrowLength - 4},${halfSize - 4} ${halfSize + arrowLength + 2},${halfSize} ${halfSize + arrowLength - 4},${halfSize + 4}"
+                 fill="#1A1A1A"/>
+      </g>
+    `;
+  }
+
+  return `
+    <svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" xmlns="http://www.w3.org/2000/svg">
+      ${arrowSvg}
+      <circle cx="${halfSize}" cy="${halfSize}" r="${circleRadius}" fill="#1A1A1A"/>
+      <text x="${halfSize}" y="${halfSize}" text-anchor="middle" dominant-baseline="central"
+            fill="white" font-size="${size * 0.35}px" font-weight="bold" font-family="sans-serif">
+        ${number}
+      </text>
+    </svg>
+  `;
+}
+
+// Calculate percentage position of a marker on a floorplan
+function calculateFloorplanPosition(
+  markerCoords: Coordinates,
+  floorplan: Floorplan
+): { x: number; y: number } | null {
+  if (!floorplan.centerCoordinates || floorplan.scale <= 0) {
+    return null;
+  }
+
+  const deltaLat = markerCoords.latitude - floorplan.centerCoordinates.latitude;
+  const deltaLng = markerCoords.longitude - floorplan.centerCoordinates.longitude;
+
+  // scale = latitudeDelta, rotation = longitudeDelta (repurposed)
+  const latDelta = floorplan.scale;
+  const lngDelta = floorplan.rotation > 0 ? floorplan.rotation : floorplan.scale;
+
+  // Convert to percentage (0-100)
+  const x = 50 + (deltaLng / lngDelta) * 100;
+  const y = 50 - (deltaLat / latDelta) * 100;
+
+  // Only return if within reasonable bounds
+  if (x >= -20 && x <= 120 && y >= -20 && y <= 120) {
+    return { x, y };
+  }
+  return null;
+}
+
+// Generate floorplan with vector overlays
+function generateFloorplanWithVectors(
+  floorplanBase64: string,
+  vectors: { number: number; direction: number | null; position: { x: number; y: number } }[]
+): string {
+  const vectorsHtml = vectors
+    .map(v => `
+      <div class="floorplan-vector" style="left: ${v.position.x}%; top: ${v.position.y}%;">
+        ${generateVectorSvg(v.number, v.direction, 32)}
+      </div>
+    `)
+    .join('');
+
+  return `
+    <div class="floorplan-container">
+      <img src="${floorplanBase64}" class="floorplan-image" />
+      ${vectorsHtml}
+    </div>
+  `;
 }
 
 function generateCoverPageHtml(photoKey: PhotoKey): string {
@@ -60,11 +138,46 @@ function generateCoverPageHtml(photoKey: PhotoKey): string {
   `;
 }
 
+function generateFloorIntroPageHtml(
+  floorLabel: string,
+  floorplanBase64: string | null,
+  vectors: { number: number; direction: number | null; position: { x: number; y: number } | null }[]
+): string {
+  let floorplanHtml = '';
+
+  if (floorplanBase64) {
+    const validVectors = vectors
+      .filter(v => v.position !== null)
+      .map(v => ({ number: v.number, direction: v.direction, position: v.position! }));
+
+    if (validVectors.length > 0) {
+      floorplanHtml = generateFloorplanWithVectors(floorplanBase64, validVectors);
+    } else {
+      floorplanHtml = `
+        <div class="floorplan-container">
+          <img src="${floorplanBase64}" class="floorplan-image" />
+        </div>
+      `;
+    }
+  } else {
+    floorplanHtml = `<div class="no-floorplan">No floorplan assigned</div>`;
+  }
+
+  return `
+    <div class="page floor-intro-page">
+      <h2 class="floor-intro-title">${floorLabel}</h2>
+      ${floorplanHtml}
+    </div>
+  `;
+}
+
 function generatePhotoPageHtml(
   item: KeyItem,
   index: number,
   floorLabel: string,
-  imageBase64: string | null
+  imageBase64: string | null,
+  floorplanBase64: string | null,
+  floorplan: Floorplan | null
 ): string {
   const locationStr = item.coordinates
     ? formatCoordinates(item.coordinates.latitude, item.coordinates.longitude)
@@ -78,6 +191,19 @@ function generatePhotoPageHtml(
     ? `<img src="${imageBase64}" class="photo-image" />`
     : `<div class="photo-placeholder">Photo unavailable</div>`;
 
+  // Generate floorplan with single vector if available
+  let floorplanHtml = '';
+  if (floorplanBase64 && floorplan && item.coordinates) {
+    const position = calculateFloorplanPosition(item.coordinates, floorplan);
+    if (position) {
+      floorplanHtml = `
+        <div class="photo-floorplan-section">
+          ${generateFloorplanWithVectors(floorplanBase64, [{ number: index + 1, direction: item.direction, position }])}
+        </div>
+      `;
+    }
+  }
+
   return `
     <div class="page photo-page">
       <div class="photo-header">
@@ -86,6 +212,7 @@ function generatePhotoPageHtml(
       </div>
       <h2 class="photo-name">${item.name}</h2>
       ${imageHtml}
+      ${floorplanHtml}
       <div class="photo-details">
         <div class="detail-row">
           <span class="detail-label">Location:</span>
@@ -157,6 +284,50 @@ function generateStyles(): string {
         margin-bottom: 8px;
       }
 
+      /* Floor Intro Page */
+      .floor-intro-page {
+        display: flex;
+        flex-direction: column;
+      }
+
+      .floor-intro-title {
+        font-size: 24px;
+        font-weight: 700;
+        margin-bottom: 24px;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+      }
+
+      .floorplan-container {
+        position: relative;
+        width: 100%;
+        max-height: 500px;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+      }
+
+      .floorplan-image {
+        max-width: 100%;
+        max-height: 500px;
+        object-fit: contain;
+        border-radius: 8px;
+      }
+
+      .floorplan-vector {
+        position: absolute;
+        transform: translate(-50%, -50%);
+      }
+
+      .no-floorplan {
+        padding: 40px;
+        text-align: center;
+        color: #666;
+        font-style: italic;
+        background: #F5F5F5;
+        border-radius: 8px;
+      }
+
       /* Photo Page */
       .photo-page {
         display: flex;
@@ -191,24 +362,36 @@ function generateStyles(): string {
 
       .photo-image {
         width: 100%;
-        max-height: 400px;
+        max-height: 300px;
         object-fit: contain;
         border-radius: 8px;
-        margin-bottom: 20px;
+        margin-bottom: 16px;
         background: #E0E0E0;
       }
 
       .photo-placeholder {
         width: 100%;
-        height: 200px;
+        height: 150px;
         display: flex;
         align-items: center;
         justify-content: center;
         background: #E0E0E0;
         border-radius: 8px;
-        margin-bottom: 20px;
+        margin-bottom: 16px;
         color: #666;
         font-style: italic;
+      }
+
+      .photo-floorplan-section {
+        margin-bottom: 16px;
+      }
+
+      .photo-floorplan-section .floorplan-container {
+        max-height: 200px;
+      }
+
+      .photo-floorplan-section .floorplan-image {
+        max-height: 200px;
       }
 
       .photo-details {
@@ -248,15 +431,10 @@ function generateStyles(): string {
 
 export async function exportPhotoKeyToPdf(photoKey: PhotoKey): Promise<PdfExportResult> {
   try {
-    // Build HTML content
     let htmlPages = '';
 
     // Cover page
     htmlPages += generateCoverPageHtml(photoKey);
-
-    // Collect all items with their floor info and global index
-    const allItems: { item: KeyItem; floorNumber: string; globalIndex: number }[] = [];
-    let globalIndex = 0;
 
     // Sort floors: numbered floors first (ascending), then unassigned
     const floorEntries = Object.entries(photoKey.floors);
@@ -271,6 +449,9 @@ export async function exportPhotoKeyToPdf(photoKey: PhotoKey): Promise<PdfExport
       return numA - numB;
     });
 
+    // Collect all items with their floor info and calculate global indices
+    const allItems: { item: KeyItem; floorNumber: string; globalIndex: number }[] = [];
+    let globalIndex = 0;
     for (const [floorNumber, floor] of floorEntries) {
       for (const item of floor.keyitems) {
         allItems.push({ item, floorNumber, globalIndex });
@@ -278,11 +459,43 @@ export async function exportPhotoKeyToPdf(photoKey: PhotoKey): Promise<PdfExport
       }
     }
 
-    // Generate photo pages
-    for (const { item, floorNumber, globalIndex: idx } of allItems) {
+    // Pre-load all floorplan images
+    const floorplanImages: Record<string, string | null> = {};
+    for (const [floorNumber, floor] of floorEntries) {
+      if (floor.floorplan) {
+        floorplanImages[floorNumber] = await getImageBase64(floor.floorplan.imageUri);
+      }
+    }
+
+    // Generate floor intro pages and photo pages
+    for (const [floorNumber, floor] of floorEntries) {
+      if (floor.keyitems.length === 0) continue;
+
       const floorLabel = floorNumber === 'unassigned' ? 'Unassigned' : `Floor ${floorNumber}`;
-      const imageBase64 = await getImageBase64(item.photoUri);
-      htmlPages += generatePhotoPageHtml(item, idx, floorLabel, imageBase64);
+      const floorplanBase64 = floorplanImages[floorNumber] || null;
+      const floorplan = floor.floorplan;
+
+      // Collect vectors for this floor
+      const floorVectors = allItems
+        .filter(i => i.floorNumber === floorNumber)
+        .map(i => ({
+          number: i.globalIndex + 1,
+          direction: i.item.direction,
+          position: i.item.coordinates && floorplan
+            ? calculateFloorplanPosition(i.item.coordinates, floorplan)
+            : null,
+        }));
+
+      // Floor intro page (only for numbered floors with floorplans)
+      if (floorNumber !== 'unassigned' && floorplanBase64) {
+        htmlPages += generateFloorIntroPageHtml(floorLabel, floorplanBase64, floorVectors);
+      }
+
+      // Photo pages for this floor
+      for (const { item, globalIndex: idx } of allItems.filter(i => i.floorNumber === floorNumber)) {
+        const imageBase64 = await getImageBase64(item.photoUri);
+        htmlPages += generatePhotoPageHtml(item, idx, floorLabel, imageBase64, floorplanBase64, floorplan);
+      }
     }
 
     const fullHtml = `
@@ -310,12 +523,11 @@ export async function exportPhotoKeyToPdf(photoKey: PhotoKey): Promise<PdfExport
     try {
       await Print.printAsync({ uri });
     } catch (printError) {
-      // User cancelled the print dialog - this is not an error
       const message = printError instanceof Error ? printError.message : '';
       if (message.includes('did not complete') || message.includes('cancelled') || message.includes('canceled')) {
-        return { success: true }; // User cancelled, not a failure
+        return { success: true };
       }
-      throw printError; // Re-throw actual errors
+      throw printError;
     }
 
     return { success: true };
