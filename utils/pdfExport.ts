@@ -116,20 +116,25 @@ function calculateFloorplanPosition(
 function generateFloorplanWithVectors(
   floorplanBase64: string,
   vectors: { number: number; direction: number | null; position: { x: number; y: number } }[],
-  vectorBase64: string
+  vectorBase64: string,
+  isSmall: boolean = false
 ): string {
   const vectorsHtml = vectors
     .map(v => `
       <div class="floorplan-vector" style="left: ${v.position.x}%; top: ${v.position.y}%;">
-        ${generateVectorHtml(v.number, v.direction, vectorBase64, 36)}
+        ${generateVectorHtml(v.number, v.direction, vectorBase64, isSmall ? 28 : 36)}
       </div>
     `)
     .join('');
 
+  const sizeClass = isSmall ? 'floorplan-wrapper-small' : 'floorplan-wrapper-large';
+
   return `
     <div class="floorplan-container">
-      <img src="${floorplanBase64}" class="floorplan-image" />
-      ${vectorsHtml}
+      <div class="floorplan-wrapper ${sizeClass}">
+        <img src="${floorplanBase64}" class="floorplan-image" />
+        ${vectorsHtml}
+      </div>
     </div>
   `;
 }
@@ -162,11 +167,13 @@ function generateFloorIntroPageHtml(
       .map(v => ({ number: v.number, direction: v.direction, position: v.position! }));
 
     if (validVectors.length > 0) {
-      floorplanHtml = generateFloorplanWithVectors(floorplanBase64, validVectors, vectorBase64);
+      floorplanHtml = generateFloorplanWithVectors(floorplanBase64, validVectors, vectorBase64, false);
     } else {
       floorplanHtml = `
         <div class="floorplan-container">
-          <img src="${floorplanBase64}" class="floorplan-image" />
+          <div class="floorplan-wrapper floorplan-wrapper-large">
+            <img src="${floorplanBase64}" class="floorplan-image" />
+          </div>
         </div>
       `;
     }
@@ -210,7 +217,7 @@ function generatePhotoPageHtml(
     if (position) {
       floorplanHtml = `
         <div class="photo-floorplan-section">
-          ${generateFloorplanWithVectors(floorplanBase64, [{ number: index + 1, direction: item.direction, position }], vectorBase64)}
+          ${generateFloorplanWithVectors(floorplanBase64, [{ number: index + 1, direction: item.direction, position }], vectorBase64, true)}
         </div>
       `;
     }
@@ -311,17 +318,27 @@ function generateStyles(): string {
       }
 
       .floorplan-container {
-        position: relative;
         width: 100%;
+        text-align: center;
+      }
+
+      .floorplan-wrapper {
+        position: relative;
+        display: inline-block;
+      }
+
+      .floorplan-wrapper-large .floorplan-image {
+        max-width: 100%;
         max-height: 500px;
-        display: flex;
-        justify-content: center;
-        align-items: center;
+      }
+
+      .floorplan-wrapper-small .floorplan-image {
+        max-width: 100%;
+        max-height: 200px;
       }
 
       .floorplan-image {
-        max-width: 100%;
-        max-height: 500px;
+        display: block;
         object-fit: contain;
         border-radius: 8px;
       }
@@ -329,6 +346,7 @@ function generateStyles(): string {
       .floorplan-vector {
         position: absolute;
         transform: translate(-50%, -50%);
+        z-index: 10;
       }
 
       .vector-marker {
@@ -419,14 +437,6 @@ function generateStyles(): string {
 
       .photo-floorplan-section {
         margin-bottom: 16px;
-      }
-
-      .photo-floorplan-section .floorplan-container {
-        max-height: 200px;
-      }
-
-      .photo-floorplan-section .floorplan-image {
-        max-height: 200px;
       }
 
       .photo-details {
