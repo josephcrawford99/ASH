@@ -10,6 +10,8 @@ import {
   JosefinSans_600SemiBold,
   JosefinSans_700Bold,
 } from '@expo-google-fonts/josefin-sans';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
 import { Colors } from '@/constants/colors';
 
 // Keep splash screen visible until fonts are loaded
@@ -38,35 +40,37 @@ export default function RootLayout() {
   }
 
   return (
-    <>
-      <Stack
-        screenOptions={{
-          headerStyle: {
-            backgroundColor: colors.background,
-          },
-          headerTintColor: colors.text,
-          headerTitleStyle: {
-            fontFamily: 'JosefinSans_600SemiBold',
-          },
-          contentStyle: {
-            backgroundColor: colors.background,
-          },
-        }}
-      >
-        <Stack.Screen
-          name="index"
-          options={{
-            headerShown: false,
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <BottomSheetModalProvider>
+        <Stack
+          screenOptions={{
+            headerStyle: {
+              backgroundColor: colors.background,
+            },
+            headerTintColor: colors.text,
+            headerTitleStyle: {
+              fontFamily: 'JosefinSans_600SemiBold',
+            },
+            contentStyle: {
+              backgroundColor: colors.background,
+            },
           }}
-        />
-        <Stack.Screen
-          name="keyview/[id]"
-          options={{
-            headerBackTitle: 'Back',
-          }}
-        />
-      </Stack>
-      <StatusBar style={theme === 'dark' ? 'light' : 'dark'} />
-    </>
+        >
+          <Stack.Screen
+            name="index"
+            options={{
+              headerShown: false,
+            }}
+          />
+          <Stack.Screen
+            name="keyview/[id]"
+            options={{
+              headerBackTitle: 'Back',
+            }}
+          />
+        </Stack>
+        <StatusBar style={theme === 'dark' ? 'light' : 'dark'} />
+      </BottomSheetModalProvider>
+    </GestureHandlerRootView>
   );
 }

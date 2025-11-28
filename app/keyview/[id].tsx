@@ -1,9 +1,10 @@
-import { useLayoutEffect } from 'react';
+import { useLayoutEffect, useRef, useCallback } from 'react';
 import { StyleSheet, View, Pressable } from 'react-native';
-import { useLocalSearchParams, useNavigation } from 'expo-router';
+import { useLocalSearchParams, useNavigation, router } from 'expo-router';
 import { usePhotoKeyStore, PhotoKeyStore } from '@/store/photoKeyStore';
 import { ThemedView } from '@/components/ThemedView';
 import { ThemedText } from '@/components/ThemedText';
+import { EditKeyModal, EditKeyModalRef } from '@/components/EditKeyModal';
 import { useTheme } from '@/hooks/useThemeColor';
 import { Spacing } from '@/constants/spacing';
 
@@ -12,6 +13,19 @@ export default function KeyViewScreen() {
   const navigation = useNavigation();
   const { colors } = useTheme();
   const photoKey = usePhotoKeyStore((state: PhotoKeyStore) => state.photoKeys[id ?? '']);
+  const removePhotoKey = usePhotoKeyStore((state: PhotoKeyStore) => state.removePhotoKey);
+  const editModalRef = useRef<EditKeyModalRef>(null);
+
+  const handleOpenEditModal = useCallback(() => {
+    editModalRef.current?.present();
+  }, []);
+
+  const handleDeleteKey = useCallback(() => {
+    if (id) {
+      removePhotoKey(id);
+      router.back();
+    }
+  }, [id, removePhotoKey]);
 
   // Set header title to uppercase photo key name
   useLayoutEffect(() => {
@@ -20,10 +34,7 @@ export default function KeyViewScreen() {
         title: photoKey.name.toUpperCase(),
         headerRight: () => (
           <Pressable
-            onPress={() => {
-              // TODO: Open edit modal
-              console.log('Edit key');
-            }}
+            onPress={handleOpenEditModal}
             style={({ pressed }) => [
               styles.editButton,
               pressed && { opacity: 0.5 },
@@ -36,7 +47,7 @@ export default function KeyViewScreen() {
         ),
       });
     }
-  }, [navigation, photoKey, colors]);
+  }, [navigation, photoKey, colors, handleOpenEditModal]);
 
   if (!photoKey) {
     return (
@@ -67,6 +78,12 @@ export default function KeyViewScreen() {
           </ThemedText>
         </View>
       )}
+
+      <EditKeyModal
+        ref={editModalRef}
+        photoKey={photoKey}
+        onDelete={handleDeleteKey}
+      />
     </ThemedView>
   );
 }
