@@ -31,16 +31,31 @@ function formatDirection(direction: number): string {
 // Convert image URI to base64 for embedding in HTML
 async function getImageBase64(uri: string): Promise<string | null> {
   try {
-    // Try to read the file - expo-image-picker caches to app's temp directory
+    // Check if file exists first
+    const fileInfo = await FileSystem.getInfoAsync(uri);
+    if (!fileInfo.exists) {
+      console.warn('Image file does not exist:', uri);
+      return null;
+    }
+
+    // Read as base64
     const base64 = await FileSystem.readAsStringAsync(uri, {
       encoding: FileSystem.EncodingType.Base64,
     });
+
     // Determine mime type from extension
     const ext = uri.split('.').pop()?.toLowerCase();
-    const mimeType = ext === 'png' ? 'image/png' : 'image/jpeg';
+    let mimeType = 'image/jpeg';
+    if (ext === 'png') mimeType = 'image/png';
+    else if (ext === 'heic' || ext === 'heif') mimeType = 'image/jpeg'; // HEIC converted by picker
+
     return `data:${mimeType};base64,${base64}`;
   } catch (error) {
     console.warn('Failed to read image for PDF:', uri, error);
+    // Try using the URI directly as fallback (works for some file:// URIs)
+    if (uri.startsWith('file://')) {
+      return uri;
+    }
     return null;
   }
 }
@@ -306,7 +321,16 @@ export async function exportPhotoKeyToPdf(photoKey: PhotoKey): Promise<PdfExport
     });
 
     // Open iOS print dialog with preview and share options
-    await Print.printAsync({ uri });
+    try {
+      await Print.printAsync({ uri });
+    } catch (printError) {
+      // User cancelled the print dialog - this is not an error
+      const message = printError instanceof Error ? printError.message : '';
+      if (message.includes('did not complete') || message.includes('cancelled') || message.includes('canceled')) {
+        return { success: true }; // User cancelled, not a failure
+      }
+      throw printError; // Re-throw actual errors
+    }
 
     return { success: true };
   } catch (error) {
