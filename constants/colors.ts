@@ -13,6 +13,7 @@ export const Colors = {
     tint: '#1A1A1A',        // Primary action color
     cardBackground: '#FFFFFF',
     cardBorder: '#E8E8E8',
+    highlight: 'rgba(0, 0, 0, 0.05)',  // Pressed state
   },
   dark: {
     background: '#121212',  // Near-black
@@ -23,5 +24,6 @@ export const Colors = {
     tint: '#F5F5F5',        // Primary action color
     cardBackground: '#1E1E1E',
     cardBorder: '#2A2A2A',
+    highlight: 'rgba(255, 255, 255, 0.1)',  // Pressed state
   },
 };
