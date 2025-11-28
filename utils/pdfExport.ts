@@ -1,6 +1,33 @@
 import * as Print from 'expo-print';
+import * as FileSystem from 'expo-file-system';
+import { Asset } from 'expo-asset';
 import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
 import { PhotoKey, KeyItem, Floorplan, Coordinates } from '@/types';
+
+// Cache for the vector asset base64
+let vectorAssetBase64: string | null = null;
+
+// Load vector.png asset as base64
+async function loadVectorAsset(): Promise<string | null> {
+  if (vectorAssetBase64) return vectorAssetBase64;
+
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const asset = Asset.fromModule(require('@/assets/vector.png'));
+    await asset.downloadAsync();
+
+    if (asset.localUri) {
+      const base64 = await FileSystem.readAsStringAsync(asset.localUri, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+      vectorAssetBase64 = `data:image/png;base64,${base64}`;
+      return vectorAssetBase64;
+    }
+  } catch (error) {
+    console.warn('Failed to load vector asset:', error);
+  }
+  return null;
+}
 
 interface PdfExportResult {
   success: boolean;
@@ -43,36 +70,16 @@ async function getImageBase64(uri: string): Promise<string | null> {
   }
 }
 
-// Generate SVG for a KeyVector marker
-function generateVectorSvg(number: number, direction: number | null, size: number = 36): string {
-  const halfSize = size / 2;
-  const circleRadius = halfSize * 0.7;
-  const arrowLength = halfSize * 0.9;
-
-  // Calculate arrow rotation
-  const arrowRotation = direction !== null ? direction - 90 : 0; // Adjust for SVG coordinate system
-
-  let arrowSvg = '';
-  if (direction !== null) {
-    arrowSvg = `
-      <g transform="rotate(${arrowRotation}, ${halfSize}, ${halfSize})">
-        <line x1="${halfSize}" y1="${halfSize}" x2="${halfSize + arrowLength}" y2="${halfSize}"
-              stroke="#1A1A1A" stroke-width="2" stroke-linecap="round"/>
-        <polygon points="${halfSize + arrowLength - 4},${halfSize - 4} ${halfSize + arrowLength + 2},${halfSize} ${halfSize + arrowLength - 4},${halfSize + 4}"
-                 fill="#1A1A1A"/>
-      </g>
-    `;
-  }
+// Generate HTML for a KeyVector marker using the vector.png asset
+function generateVectorHtml(number: number, direction: number | null, vectorBase64: string, size: number = 40): string {
+  // The asset points up (0°), so rotate by direction degrees
+  const rotation = direction !== null ? direction : 0;
 
   return `
-    <svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" xmlns="http://www.w3.org/2000/svg">
-      ${arrowSvg}
-      <circle cx="${halfSize}" cy="${halfSize}" r="${circleRadius}" fill="#1A1A1A"/>
-      <text x="${halfSize}" y="${halfSize}" text-anchor="middle" dominant-baseline="central"
-            fill="white" font-size="${size * 0.35}px" font-weight="bold" font-family="sans-serif">
-        ${number}
-      </text>
-    </svg>
+    <div class="vector-marker" style="width: ${size}px; height: ${size}px;">
+      <img src="${vectorBase64}" class="vector-image" style="transform: rotate(${rotation}deg);" />
+      <span class="vector-number">${number}</span>
+    </div>
   `;
 }
 
@@ -106,12 +113,13 @@ function calculateFloorplanPosition(
 // Generate floorplan with vector overlays
 function generateFloorplanWithVectors(
   floorplanBase64: string,
-  vectors: { number: number; direction: number | null; position: { x: number; y: number } }[]
+  vectors: { number: number; direction: number | null; position: { x: number; y: number } }[],
+  vectorBase64: string
 ): string {
   const vectorsHtml = vectors
     .map(v => `
       <div class="floorplan-vector" style="left: ${v.position.x}%; top: ${v.position.y}%;">
-        ${generateVectorSvg(v.number, v.direction, 32)}
+        ${generateVectorHtml(v.number, v.direction, vectorBase64, 36)}
       </div>
     `)
     .join('');
@@ -141,7 +149,8 @@ function generateCoverPageHtml(photoKey: PhotoKey): string {
 function generateFloorIntroPageHtml(
   floorLabel: string,
   floorplanBase64: string | null,
-  vectors: { number: number; direction: number | null; position: { x: number; y: number } | null }[]
+  vectors: { number: number; direction: number | null; position: { x: number; y: number } | null }[],
+  vectorBase64: string
 ): string {
   let floorplanHtml = '';
 
@@ -151,7 +160,7 @@ function generateFloorIntroPageHtml(
       .map(v => ({ number: v.number, direction: v.direction, position: v.position! }));
 
     if (validVectors.length > 0) {
-      floorplanHtml = generateFloorplanWithVectors(floorplanBase64, validVectors);
+      floorplanHtml = generateFloorplanWithVectors(floorplanBase64, validVectors, vectorBase64);
     } else {
       floorplanHtml = `
         <div class="floorplan-container">
@@ -177,7 +186,8 @@ function generatePhotoPageHtml(
   floorLabel: string,
   imageBase64: string | null,
   floorplanBase64: string | null,
-  floorplan: Floorplan | null
+  floorplan: Floorplan | null,
+  vectorBase64: string
 ): string {
   const locationStr = item.coordinates
     ? formatCoordinates(item.coordinates.latitude, item.coordinates.longitude)
@@ -198,7 +208,7 @@ function generatePhotoPageHtml(
     if (position) {
       floorplanHtml = `
         <div class="photo-floorplan-section">
-          ${generateFloorplanWithVectors(floorplanBase64, [{ number: index + 1, direction: item.direction, position }])}
+          ${generateFloorplanWithVectors(floorplanBase64, [{ number: index + 1, direction: item.direction, position }], vectorBase64)}
         </div>
       `;
     }
@@ -319,6 +329,29 @@ function generateStyles(): string {
         transform: translate(-50%, -50%);
       }
 
+      .vector-marker {
+        position: relative;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .vector-image {
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+      }
+
+      .vector-number {
+        position: absolute;
+        font-size: 12px;
+        font-weight: bold;
+        color: #1A1A1A;
+        top: 58%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+      }
+
       .no-floorplan {
         padding: 40px;
         text-align: center;
@@ -433,6 +466,12 @@ export async function exportPhotoKeyToPdf(photoKey: PhotoKey): Promise<PdfExport
   try {
     let htmlPages = '';
 
+    // Load the vector asset
+    const vectorBase64 = await loadVectorAsset();
+    if (!vectorBase64) {
+      return { success: false, error: 'Failed to load vector asset' };
+    }
+
     // Cover page
     htmlPages += generateCoverPageHtml(photoKey);
 
@@ -488,13 +527,13 @@ export async function exportPhotoKeyToPdf(photoKey: PhotoKey): Promise<PdfExport
 
       // Floor intro page (only for numbered floors with floorplans)
       if (floorNumber !== 'unassigned' && floorplanBase64) {
-        htmlPages += generateFloorIntroPageHtml(floorLabel, floorplanBase64, floorVectors);
+        htmlPages += generateFloorIntroPageHtml(floorLabel, floorplanBase64, floorVectors, vectorBase64);
       }
 
       // Photo pages for this floor
       for (const { item, globalIndex: idx } of allItems.filter(i => i.floorNumber === floorNumber)) {
         const imageBase64 = await getImageBase64(item.photoUri);
-        htmlPages += generatePhotoPageHtml(item, idx, floorLabel, imageBase64, floorplanBase64, floorplan);
+        htmlPages += generatePhotoPageHtml(item, idx, floorLabel, imageBase64, floorplanBase64, floorplan, vectorBase64);
       }
     }
 
