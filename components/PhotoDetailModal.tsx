@@ -1,5 +1,5 @@
 import { useCallback, useMemo, forwardRef, useImperativeHandle, useRef, useState, useEffect } from 'react';
-import { View, StyleSheet, Pressable, Alert, Image, Keyboard } from 'react-native';
+import { View, StyleSheet, Pressable, Alert, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import {
   BottomSheetModal,
@@ -37,15 +37,7 @@ function PhotoDetailModalComponent(
   const [floorInput, setFloorInput] = useState('');
   const [imageError, setImageError] = useState(false);
 
-  const snapPoints = useMemo(() => ['70%'], []);
-
-  // Blur input when keyboard hides to trigger restore behavior
-  useEffect(() => {
-    const subscription = Keyboard.addListener('keyboardDidHide', () => {
-      inputRef.current?.blur();
-    });
-    return () => subscription.remove();
-  }, []);
+  const snapPoints = useMemo(() => ['70%', '90%'], []);
 
   // Reset floor input and image error when item changes
   useEffect(() => {
@@ -179,7 +171,7 @@ function PhotoDetailModalComponent(
               onChangeText={setFloorInput}
               placeholder="Unassigned"
               placeholderTextColor={colors.icon}
-              keyboardType="numbers-and-punctuation"
+              keyboardType="number-pad"
             />
           </View>
         </View>
