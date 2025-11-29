@@ -11,7 +11,6 @@ import { PhotoDetailModal, PhotoDetailModalRef } from '@/components/PhotoDetailM
 import { FloorplanModal, FloorplanModalRef } from '@/components/FloorplanModal';
 import { FloorplanAdjustmentView } from '@/components/FloorplanAdjustmentView';
 import { PhotoKeyMap, PhotoKeyMapRef } from '@/components/PhotoKeyMap';
-import { PlusButton } from '@/components/PlusButton';
 import { PdfExportContainer } from '@/components/PdfExportContainer';
 import { useTheme } from '@/hooks/useThemeColor';
 import { Spacing } from '@/constants/spacing';
@@ -212,30 +211,30 @@ export default function KeyViewScreen() {
     }
   }, []);
 
-  // Set header title to uppercase photo key name
+  // Set header with clickable title to open edit modal
   useLayoutEffect(() => {
     if (photoKey) {
       navigation.setOptions({
-        title: photoKey.name.toUpperCase(),
+        headerTitle: () => (
+          <Pressable
+            onPress={handleOpenEditModal}
+            style={({ pressed }) => pressed && { opacity: 0.5 }}
+          >
+            <ThemedText style={{ fontSize: 17, fontWeight: '600' }}>
+              {photoKey.name.toUpperCase()}
+            </ThemedText>
+          </Pressable>
+        ),
         headerRight: () => (
-          <View style={styles.headerRight}>
-            <PlusButton onPress={handleAddPhotos} size={36} />
-            <Pressable
-              onPress={handleOpenEditModal}
-              style={({ pressed }) => [
-                styles.editButton,
-                pressed && { opacity: 0.5 },
-              ]}
-            >
-              <ThemedText style={[styles.editButtonText, { color: colors.text }]}>
-                Edit
-              </ThemedText>
-            </Pressable>
-          </View>
+          <Pressable onPress={handleAddPhotos} style={{ alignItems: 'center', marginRight: -35, marginTop: 4 }}>
+            <ThemedText style={{ fontSize: 30, fontWeight: '300', color: colors.tint }}>
+              +
+            </ThemedText>
+          </Pressable>
         ),
       });
     }
-  }, [navigation, photoKey, colors, handleOpenEditModal, handleAddPhotos]);
+  }, [navigation, photoKey, colors.tint, handleOpenEditModal, handleAddPhotos]);
 
   // Build sections for SectionList
   const sections = useMemo(() => {
@@ -463,11 +462,6 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     paddingBottom: Spacing.xl,
   },
-  headerRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.md,
-  },
   exportButtonContainer: {
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.xl,
@@ -484,13 +478,6 @@ const styles = StyleSheet.create({
   exportPdfButtonText: {
     fontSize: 16,
     fontWeight: '600',
-  },
-  editButton: {
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: Spacing.xs,
-  },
-  editButtonText: {
-    fontSize: 17,
   },
   sectionHeader: {
     paddingHorizontal: Spacing.lg,
