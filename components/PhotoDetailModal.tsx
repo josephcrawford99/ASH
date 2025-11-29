@@ -1,11 +1,13 @@
 import { useCallback, useMemo, forwardRef, useImperativeHandle, useRef, useState, useEffect } from 'react';
-import { View, StyleSheet, Pressable, Alert, Image, TextInput } from 'react-native';
+import { View, StyleSheet, Pressable, Alert, Image, Keyboard } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import {
   BottomSheetModal,
   BottomSheetBackdrop,
   BottomSheetScrollView,
+  BottomSheetTextInput,
 } from '@gorhom/bottom-sheet';
+import type { TextInput } from 'react-native';
 import { ThemedText } from './ThemedText';
 import { useTheme } from '@/hooks/useThemeColor';
 import { Spacing, BorderRadius } from '@/constants/spacing';
@@ -30,10 +32,19 @@ function PhotoDetailModalComponent(
 ) {
   const { colors } = useTheme();
   const bottomSheetRef = useRef<BottomSheetModal>(null);
+  const inputRef = useRef<TextInput>(null);
   const [floorInput, setFloorInput] = useState('');
   const [imageError, setImageError] = useState(false);
 
   const snapPoints = useMemo(() => ['70%'], []);
+
+  // Blur input when keyboard hides to trigger restore behavior
+  useEffect(() => {
+    const subscription = Keyboard.addListener('keyboardDidHide', () => {
+      inputRef.current?.blur();
+    });
+    return () => subscription.remove();
+  }, []);
 
   // Reset floor input and image error when item changes
   useEffect(() => {
@@ -96,6 +107,7 @@ function PhotoDetailModalComponent(
       handleIndicatorStyle={{ backgroundColor: colors.icon }}
       keyboardBehavior="interactive"
       keyboardBlurBehavior="restore"
+      android_keyboardInputMode="adjustResize"
     >
       <BottomSheetScrollView style={styles.content}>
         <ThemedText type="subtitle" style={styles.title}>
@@ -147,7 +159,8 @@ function PhotoDetailModalComponent(
 
           <View style={styles.infoRow}>
             <ThemedText style={styles.label}>Floor</ThemedText>
-            <TextInput
+            <BottomSheetTextInput
+              ref={inputRef}
               style={[
                 styles.floorInput,
                 {
@@ -161,7 +174,6 @@ function PhotoDetailModalComponent(
               placeholder="Unassigned"
               placeholderTextColor={colors.icon}
               keyboardType="number-pad"
-              returnKeyType="done"
             />
           </View>
         </View>
