@@ -241,6 +241,7 @@ export function FloorplanAdjustmentView({
                 ref={mapRef}
                 style={styles.map}
                 provider={PROVIDER_DEFAULT}
+                mapType="hybrid"
                 initialRegion={initialRegion}
                 onRegionChangeComplete={setCurrentRegion}
                 showsUserLocation={false}

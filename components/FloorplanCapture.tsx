@@ -147,6 +147,7 @@ export function FloorplanCapture({
       <MapView
         style={styles.map}
         provider={PROVIDER_DEFAULT}
+        mapType="hybrid"
         initialRegion={region}
         region={region}
         onMapReady={handleMapReady}

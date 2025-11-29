@@ -14,7 +14,7 @@
     ],
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.ash.app",
+      "bundleIdentifier": "com.joey.ash",
       "buildNumber": "1.0.0"
     },
     "plugins": [

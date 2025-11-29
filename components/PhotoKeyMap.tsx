@@ -109,6 +109,7 @@ function PhotoKeyMapComponent(
         ref={mapRef}
         style={styles.map}
         provider={PROVIDER_DEFAULT}
+        mapType="hybrid"
         initialRegion={region}
         showsUserLocation={false}
         showsMyLocationButton={false}
