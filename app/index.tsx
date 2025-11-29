@@ -8,9 +8,8 @@ import { ThemedText } from '@/components/ThemedText';
 import { NewPhotoKeyModal } from '@/components/NewPhotoKeyModal';
 import { PlusButton } from '@/components/PlusButton';
 import { useTheme } from '@/hooks/useThemeColor';
-import { Spacing } from '@/constants/spacing';
+import { Spacing, BorderRadius } from '@/constants/spacing';
 import { PhotoKey } from '@/types';
-import { BorderRadius } from '@/constants/spacing';
 
 export default function Index() {
   const { colors } = useTheme();
