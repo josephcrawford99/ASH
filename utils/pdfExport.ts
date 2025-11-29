@@ -7,7 +7,7 @@ import { PhotoKey, KeyItem, Floorplan, Coordinates } from '@/types';
 let vectorAssetBase64: string | null = null;
 
 // Load vector.png asset as base64
-async function loadVectorAsset(): Promise<string | null> {
+export async function loadVectorAsset(): Promise<string | null> {
   if (vectorAssetBase64) return vectorAssetBase64;
 
   try {
@@ -474,20 +474,279 @@ function generateStyles(): string {
   `;
 }
 
-export async function exportPhotoKeyToPdf(photoKey: PhotoKey): Promise<PdfExportResult> {
+interface PdfPage {
+  type: 'cover' | 'floor-intro' | 'photo';
+  html: string;
+}
+
+// Simple floor intro page using captured image (no vector overlay in HTML)
+function generateFloorIntroPageWithCaptureHtml(
+  floorLabel: string,
+  capturedImageBase64: string
+): string {
+  return `
+    <div class="page floor-intro-page">
+      <h2 class="floor-intro-title">${floorLabel}</h2>
+      <div class="floorplan-container">
+        <img src="${capturedImageBase64}" class="captured-floorplan" />
+      </div>
+    </div>
+  `;
+}
+
+// Simple photo page using captured image for floorplan section
+function generatePhotoPageWithCaptureHtml(
+  item: KeyItem,
+  index: number,
+  floorLabel: string,
+  imageBase64: string | null,
+  capturedFloorplanBase64: string | null
+): string {
+  const locationStr = item.coordinates
+    ? formatCoordinates(item.coordinates.latitude, item.coordinates.longitude)
+    : 'No location data';
+
+  const directionStr = item.direction !== null
+    ? formatDirection(item.direction)
+    : 'No direction data';
+
+  const imageHtml = imageBase64
+    ? `<img src="${imageBase64}" class="photo-image" />`
+    : `<div class="photo-placeholder">Photo unavailable</div>`;
+
+  const floorplanHtml = capturedFloorplanBase64
+    ? `<div class="photo-floorplan-section">
+        <img src="${capturedFloorplanBase64}" class="captured-floorplan-small" />
+      </div>`
+    : '';
+
+  return `
+    <div class="page photo-page">
+      <div class="photo-header">
+        <span class="photo-number">#${index + 1}</span>
+        <span class="photo-floor">${floorLabel}</span>
+      </div>
+      <h2 class="photo-name">${item.name}</h2>
+      ${imageHtml}
+      ${floorplanHtml}
+      <div class="photo-details">
+        <div class="detail-row">
+          <span class="detail-label">Location:</span>
+          <span class="detail-value mono">${locationStr}</span>
+        </div>
+        <div class="detail-row">
+          <span class="detail-label">Direction:</span>
+          <span class="detail-value mono">${directionStr}</span>
+        </div>
+        ${item.notes ? `
+        <div class="detail-row">
+          <span class="detail-label">Notes:</span>
+          <span class="detail-value">${item.notes}</span>
+        </div>
+        ` : ''}
+      </div>
+    </div>
+  `;
+}
+
+// Styles for captured images version
+function generateStylesWithCaptures(): string {
+  return `
+    <style>
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        color: #1A1A1A;
+        background: #FAFAFA;
+      }
+
+      .page {
+        page-break-after: always;
+        padding: 40px;
+        min-height: 100vh;
+      }
+
+      .page:last-child {
+        page-break-after: auto;
+      }
+
+      /* Cover Page */
+      .cover-page {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+      }
+
+      .cover-content {
+        padding: 40px;
+      }
+
+      .cover-title {
+        font-size: 32px;
+        font-weight: 700;
+        margin-bottom: 24px;
+        text-transform: uppercase;
+        letter-spacing: 2px;
+      }
+
+      .cover-date {
+        font-size: 16px;
+        color: #666;
+        margin-bottom: 8px;
+      }
+
+      /* Floor Intro Page */
+      .floor-intro-page {
+        display: flex;
+        flex-direction: column;
+      }
+
+      .floor-intro-title {
+        font-size: 24px;
+        font-weight: 700;
+        margin-bottom: 24px;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+      }
+
+      .floorplan-container {
+        width: 100%;
+        text-align: center;
+      }
+
+      .captured-floorplan {
+        max-width: 100%;
+        max-height: 500px;
+        object-fit: contain;
+        border-radius: 8px;
+      }
+
+      .captured-floorplan-small {
+        max-width: 100%;
+        max-height: 200px;
+        object-fit: contain;
+        border-radius: 8px;
+      }
+
+      .no-floorplan {
+        padding: 40px;
+        text-align: center;
+        color: #666;
+        font-style: italic;
+        background: #F5F5F5;
+        border-radius: 8px;
+      }
+
+      /* Photo Page */
+      .photo-page {
+        display: flex;
+        flex-direction: column;
+      }
+
+      .photo-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 16px;
+      }
+
+      .photo-number {
+        font-size: 24px;
+        font-weight: 700;
+        color: #1A1A1A;
+      }
+
+      .photo-floor {
+        font-size: 14px;
+        color: #666;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+      }
+
+      .photo-name {
+        font-size: 20px;
+        font-weight: 600;
+        margin-bottom: 20px;
+      }
+
+      .photo-image {
+        width: 100%;
+        max-height: 300px;
+        object-fit: contain;
+        border-radius: 8px;
+        margin-bottom: 16px;
+        background: #E0E0E0;
+      }
+
+      .photo-placeholder {
+        width: 100%;
+        height: 150px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #E0E0E0;
+        border-radius: 8px;
+        margin-bottom: 16px;
+        color: #666;
+        font-style: italic;
+      }
+
+      .photo-floorplan-section {
+        margin-bottom: 16px;
+        text-align: center;
+      }
+
+      .photo-details {
+        background: #F5F5F5;
+        border-radius: 8px;
+        padding: 16px;
+      }
+
+      .detail-row {
+        display: flex;
+        margin-bottom: 12px;
+      }
+
+      .detail-row:last-child {
+        margin-bottom: 0;
+      }
+
+      .detail-label {
+        font-size: 12px;
+        text-transform: uppercase;
+        color: #666;
+        letter-spacing: 0.5px;
+        width: 100px;
+        flex-shrink: 0;
+      }
+
+      .detail-value {
+        font-size: 14px;
+      }
+
+      .mono {
+        font-family: 'Courier New', Courier, monospace;
+      }
+    </style>
+  `;
+}
+
+// Export using pre-captured floorplan images
+export async function exportPhotoKeyToPdfWithCaptures(
+  photoKey: PhotoKey,
+  capturedFloorplans: Record<string, string>, // floorNumber -> base64 image (all vectors)
+  capturedItems: Record<string, string> = {} // itemId -> base64 image (single vector)
+): Promise<PdfExportResult> {
   try {
-    let htmlPages = '';
+    const pages: PdfPage[] = [];
 
-    // Load the vector asset
-    const vectorBase64 = await loadVectorAsset();
-    if (!vectorBase64) {
-      return { success: false, error: 'Failed to load vector asset' };
-    }
-
-    // Cover page
-    htmlPages += generateCoverPageHtml(photoKey);
-
-    // Sort floors: numbered floors first (ascending), then unassigned
+    // Sort floors - numbered floors first (ascending), then unassigned
     const floorEntries = Object.entries(photoKey.floors);
     floorEntries.sort(([a], [b]) => {
       if (a === 'unassigned') return 1;
@@ -500,54 +759,206 @@ export async function exportPhotoKeyToPdf(photoKey: PhotoKey): Promise<PdfExport
       return numA - numB;
     });
 
-    // Collect all items with their floor info and calculate global indices
-    const allItems: { item: KeyItem; floorNumber: string; globalIndex: number }[] = [];
-    let globalIndex = 0;
-    for (const [floorNumber, floor] of floorEntries) {
+    // Build global index map for all items
+    const itemIndexMap = new Map<string, number>();
+    let globalIdx = 0;
+    for (const [, floor] of floorEntries) {
       for (const item of floor.keyitems) {
-        allItems.push({ item, floorNumber, globalIndex });
-        globalIndex++;
+        itemIndexMap.set(item.id, globalIdx++);
       }
     }
 
-    // Pre-load all floorplan images
-    const floorplanImages: Record<string, string | null> = {};
-    for (const [floorNumber, floor] of floorEntries) {
-      if (floor.floorplan) {
-        floorplanImages[floorNumber] = await getImageBase64(floor.floorplan.imageUri);
-      }
-    }
+    // Build cover page
+    pages.push({ type: 'cover', html: generateCoverPageHtml(photoKey) });
 
-    // Generate floor intro pages and photo pages
-    for (const [floorNumber, floor] of floorEntries) {
+    // Build floor intro pages using captured images
+    for (const [floorNum, floor] of floorEntries) {
+      if (floorNum === 'unassigned') continue;
       if (floor.keyitems.length === 0) continue;
 
-      const floorLabel = floorNumber === 'unassigned' ? 'Unassigned' : `Floor ${floorNumber}`;
-      const floorplanBase64 = floorplanImages[floorNumber] || null;
-      const floorplan = floor.floorplan;
-
-      // Collect vectors for this floor
-      const floorVectors = allItems
-        .filter(i => i.floorNumber === floorNumber)
-        .map(i => ({
-          number: i.globalIndex + 1,
-          direction: i.item.direction,
-          position: i.item.coordinates && floorplan
-            ? calculateFloorplanPosition(i.item.coordinates, floorplan)
-            : null,
-        }));
-
-      // Floor intro page (only for numbered floors with floorplans)
-      if (floorNumber !== 'unassigned' && floorplanBase64) {
-        htmlPages += generateFloorIntroPageHtml(floorLabel, floorplanBase64, floorVectors, vectorBase64);
+      const capturedImage = capturedFloorplans[floorNum];
+      if (!capturedImage) {
+        continue;
       }
 
-      // Photo pages for this floor
-      for (const { item, globalIndex: idx } of allItems.filter(i => i.floorNumber === floorNumber)) {
+      pages.push({
+        type: 'floor-intro',
+        html: generateFloorIntroPageWithCaptureHtml(
+          `Floor ${floorNum}`,
+          capturedImage
+        )
+      });
+    }
+
+    // Build photo pages
+    for (const [floorNum, floor] of floorEntries) {
+      const floorLabel = floorNum === 'unassigned' ? 'Unassigned' : `Floor ${floorNum}`;
+
+      for (const item of floor.keyitems) {
+        const itemIndex = itemIndexMap.get(item.id) ?? 0;
         const imageBase64 = await getImageBase64(item.photoUri);
-        htmlPages += generatePhotoPageHtml(item, idx, floorLabel, imageBase64, floorplanBase64, floorplan, vectorBase64);
+
+        // Use individual item capture (single vector) instead of floor capture (all vectors)
+        const itemCapturedImage = capturedItems[item.id] || null;
+
+        pages.push({
+          type: 'photo',
+          html: generatePhotoPageWithCaptureHtml(
+            item,
+            itemIndex,
+            floorLabel,
+            imageBase64,
+            itemCapturedImage
+          )
+        });
       }
     }
+
+    // Combine all pages
+    const htmlPages = pages.map(p => p.html).join('');
+
+    const fullHtml = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>${photoKey.name} - Photo Key Report</title>
+        ${generateStylesWithCaptures()}
+      </head>
+      <body>
+        ${htmlPages}
+      </body>
+      </html>
+    `;
+
+    // Generate PDF file
+    const { uri } = await Print.printToFileAsync({
+      html: fullHtml,
+      base64: false,
+    });
+
+    // Open iOS print dialog with preview and share options
+    try {
+      await Print.printAsync({ uri });
+    } catch (printError) {
+      const message = printError instanceof Error ? printError.message : '';
+      if (message.includes('did not complete') || message.includes('cancelled') || message.includes('canceled')) {
+        return { success: true };
+      }
+      throw printError;
+    }
+
+    return { success: true };
+  } catch (error) {
+    console.error('[pdfExport] PDF export error:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to export PDF',
+    };
+  }
+}
+
+export async function exportPhotoKeyToPdf(photoKey: PhotoKey): Promise<PdfExportResult> {
+  try {
+    const pages: PdfPage[] = [];
+
+    // Phase 1: Load the vector asset
+    const vectorBase64 = await loadVectorAsset();
+    if (!vectorBase64) {
+      return { success: false, error: 'Failed to load vector asset' };
+    }
+
+    // Phase 2: Sort floors - numbered floors first (ascending), then unassigned
+    const floorEntries = Object.entries(photoKey.floors);
+    floorEntries.sort(([a], [b]) => {
+      if (a === 'unassigned') return 1;
+      if (b === 'unassigned') return -1;
+      const numA = parseInt(a, 10);
+      const numB = parseInt(b, 10);
+      if (isNaN(numA) && isNaN(numB)) return a.localeCompare(b);
+      if (isNaN(numA)) return 1;
+      if (isNaN(numB)) return -1;
+      return numA - numB;
+    });
+
+    // Phase 3: Pre-load ALL floorplan images into a cache
+    const floorplanCache = new Map<string, { base64: string; floorplan: Floorplan }>();
+    for (const [floorNum, floor] of floorEntries) {
+      if (floor.floorplan) {
+        const base64 = await getImageBase64(floor.floorplan.imageUri);
+        if (base64) {
+          floorplanCache.set(floorNum, { base64, floorplan: floor.floorplan });
+        }
+      }
+    }
+
+    // Phase 4: Build global index map for all items
+    const itemIndexMap = new Map<string, number>();
+    let globalIdx = 0;
+    for (const [, floor] of floorEntries) {
+      for (const item of floor.keyitems) {
+        itemIndexMap.set(item.id, globalIdx++);
+      }
+    }
+
+    // Phase 5: Build cover page
+    pages.push({ type: 'cover', html: generateCoverPageHtml(photoKey) });
+
+    // Phase 6: Build floor intro pages (one per numbered floor with floorplan)
+    for (const [floorNum, floor] of floorEntries) {
+      if (floorNum === 'unassigned') continue;
+      if (floor.keyitems.length === 0) continue;
+
+      const cached = floorplanCache.get(floorNum);
+      if (!cached) continue;
+
+      // Build ALL vectors for this floor
+      const floorVectors = floor.keyitems.map(item => ({
+        number: (itemIndexMap.get(item.id) ?? 0) + 1,
+        direction: item.direction,
+        position: item.coordinates
+          ? calculateFloorplanPosition(item.coordinates, cached.floorplan)
+          : null
+      }));
+
+      pages.push({
+        type: 'floor-intro',
+        html: generateFloorIntroPageHtml(
+          `Floor ${floorNum}`,
+          cached.base64,
+          floorVectors,
+          vectorBase64
+        )
+      });
+    }
+
+    // Phase 7: Build photo pages (one per item)
+    for (const [floorNum, floor] of floorEntries) {
+      const floorLabel = floorNum === 'unassigned' ? 'Unassigned' : `Floor ${floorNum}`;
+      const cached = floorplanCache.get(floorNum);
+
+      for (const item of floor.keyitems) {
+        const itemIndex = itemIndexMap.get(item.id) ?? 0;
+        const imageBase64 = await getImageBase64(item.photoUri);
+
+        pages.push({
+          type: 'photo',
+          html: generatePhotoPageHtml(
+            item,
+            itemIndex,
+            floorLabel,
+            imageBase64,
+            cached?.base64 ?? null,
+            cached?.floorplan ?? null,
+            vectorBase64
+          )
+        });
+      }
+    }
+
+    // Phase 8: Combine all pages
+    const htmlPages = pages.map(p => p.html).join('');
 
     const fullHtml = `
       <!DOCTYPE html>

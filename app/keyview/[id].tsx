@@ -11,10 +11,10 @@ import { PhotoDetailModal, PhotoDetailModalRef } from '@/components/PhotoDetailM
 import { FloorplanModal, FloorplanModalRef } from '@/components/FloorplanModal';
 import { FloorplanAdjustmentView } from '@/components/FloorplanAdjustmentView';
 import { PhotoKeyMap } from '@/components/PhotoKeyMap';
+import { PdfExportContainer } from '@/components/PdfExportContainer';
 import { useTheme } from '@/hooks/useThemeColor';
 import { Spacing } from '@/constants/spacing';
 import { pickAndImportPhotos, pickFloorplanImage } from '@/utils/photoImport';
-import { exportPhotoKeyToPdf } from '@/utils/pdfExport';
 import { KeyItem, Coordinates } from '@/types';
 
 export default function KeyViewScreen() {
@@ -187,21 +187,18 @@ export default function KeyViewScreen() {
   }, []);
 
   // Handle PDF export
-  const handleExportPdf = useCallback(async () => {
+  const handleExportPdf = useCallback(() => {
     if (!photoKey || isExporting) return;
-
     setIsExporting(true);
-    try {
-      const result = await exportPhotoKeyToPdf(photoKey);
-      if (!result.success) {
-        Alert.alert('Export Failed', result.error || 'Failed to export PDF');
-      }
-    } catch {
-      Alert.alert('Export Failed', 'An error occurred while exporting');
-    } finally {
-      setIsExporting(false);
-    }
   }, [photoKey, isExporting]);
+
+  // Handle PDF export completion
+  const handleExportComplete = useCallback((success: boolean, error?: string) => {
+    setIsExporting(false);
+    if (!success && error) {
+      Alert.alert('Export Failed', error);
+    }
+  }, []);
 
   // Set header title to uppercase photo key name
   useLayoutEffect(() => {
@@ -429,6 +426,14 @@ export default function KeyViewScreen() {
           keyitems={selectedFloorKeyItems}
           onSave={handleSaveAdjustment}
           onCancel={handleCancelAdjustment}
+        />
+      )}
+
+      {isExporting && photoKey && (
+        <PdfExportContainer
+          photoKey={photoKey}
+          visible={isExporting}
+          onComplete={handleExportComplete}
         />
       )}
     </ThemedView>
