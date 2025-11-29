@@ -409,6 +409,16 @@ export default function KeyViewScreen() {
         item={selectedPhoto?.item ?? null}
         onSave={handleSaveFloor}
         onRemove={handleRemovePhoto}
+        hasFloorplan={selectedPhoto ? !!photoKey.floors[selectedPhoto.floorNumber]?.floorplan : false}
+        onAdjustPosition={() => {
+          // TODO: Implement individual photo position adjustment
+          // For now, just close the modal and open the floor's floorplan adjustment
+          if (selectedPhoto) {
+            setSelectedFloorForFloorplan(selectedPhoto.floorNumber);
+            photoDetailRef.current?.dismiss();
+            setShowFloorplanAdjustment(true);
+          }
+        }}
       />
 
       <FloorplanModal

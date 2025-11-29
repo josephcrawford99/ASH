@@ -15,6 +15,8 @@ interface PhotoDetailModalProps {
   item: KeyItem | null;
   onSave: (floorNumber: string) => void;
   onRemove: () => void;
+  hasFloorplan?: boolean;
+  onAdjustPosition?: () => void;
 }
 
 export interface PhotoDetailModalRef {
@@ -23,7 +25,7 @@ export interface PhotoDetailModalRef {
 }
 
 function PhotoDetailModalComponent(
-  { item, onSave, onRemove }: PhotoDetailModalProps,
+  { item, onSave, onRemove, hasFloorplan, onAdjustPosition }: PhotoDetailModalProps,
   ref: React.ForwardedRef<PhotoDetailModalRef>
 ) {
   const { colors } = useTheme();
@@ -165,6 +167,22 @@ function PhotoDetailModalComponent(
         </View>
 
         <View style={styles.actions}>
+          {hasFloorplan && onAdjustPosition && (
+            <Pressable
+              onPress={onAdjustPosition}
+              style={({ pressed }) => [
+                styles.adjustButton,
+                { borderColor: colors.text },
+                pressed && { opacity: 0.7 },
+              ]}
+            >
+              <Ionicons name="move-outline" size={18} color={colors.text} />
+              <ThemedText style={styles.adjustButtonText}>
+                Adjust Position
+              </ThemedText>
+            </Pressable>
+          )}
+
           <Pressable
             onPress={handleSave}
             style={({ pressed }) => [
@@ -250,6 +268,19 @@ const styles = StyleSheet.create({
   actions: {
     gap: Spacing.sm,
     paddingBottom: Spacing.xl,
+  },
+  adjustButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.sm,
+    padding: Spacing.md,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+  },
+  adjustButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
   },
   saveButton: {
     padding: Spacing.md,
