@@ -15,7 +15,7 @@ import { KeyItem } from '@/types';
 
 interface PhotoDetailModalProps {
   item: KeyItem | null;
-  onSave: (floorNumber: string) => void;
+  onSave: (updates: { floorNumber: string; name: string; notes: string }) => void;
   onRemove: () => void;
   hasFloorplan?: boolean;
   onAdjustPosition?: () => void;
@@ -34,15 +34,19 @@ function PhotoDetailModalComponent(
   const { colors } = useTheme();
   const bottomSheetRef = useRef<BottomSheetModal>(null);
   const inputRef = useRef<TextInput>(null);
+  const [nameInput, setNameInput] = useState('');
   const [floorInput, setFloorInput] = useState('');
+  const [notesInput, setNotesInput] = useState('');
   const [imageError, setImageError] = useState(false);
 
   const snapPoints = useMemo(() => ['70%', '90%'], []);
 
-  // Reset floor input and image error when item changes
+  // Reset inputs when item changes
   useEffect(() => {
     if (item) {
+      setNameInput(item.name);
       setFloorInput(item.floorNumber === 'unassigned' ? '' : item.floorNumber);
+      setNotesInput(item.notes || '');
       setImageError(false);
     }
   }, [item]);
@@ -65,10 +69,14 @@ function PhotoDetailModalComponent(
   );
 
   const handleSave = useCallback(() => {
-    const newFloor = floorInput.trim() || 'unassigned';
-    onSave(newFloor);
+    const newFloor = String(floorInput ?? '').trim() || 'unassigned';
+    onSave({
+      floorNumber: newFloor,
+      name: String(nameInput ?? '').trim() || item?.name || '',
+      notes: String(notesInput ?? ''),
+    });
     bottomSheetRef.current?.dismiss();
-  }, [floorInput, onSave]);
+  }, [floorInput, nameInput, notesInput, item, onSave]);
 
   const handleRemove = useCallback(() => {
     Alert.alert(
@@ -108,9 +116,25 @@ function PhotoDetailModalComponent(
       android_keyboardInputMode="adjustResize"
     >
       <BottomSheetScrollView style={styles.content}>
-        <ThemedText type="subtitle" style={styles.title}>
-          {item.name}
-        </ThemedText>
+        <View style={styles.nameSection}>
+          <ThemedText style={styles.label}>Name</ThemedText>
+          <BottomSheetTextInput
+            style={[
+              styles.nameInput,
+              {
+                backgroundColor: colors.background,
+                color: colors.text,
+                borderColor: colors.border,
+              },
+            ]}
+            value={nameInput}
+            onChangeText={setNameInput}
+            onFocus={() => setNameInput('')}
+            placeholder="Photo name"
+            placeholderTextColor={colors.icon}
+            selectTextOnFocus
+          />
+        </View>
 
         {imageError ? (
           <View style={[styles.image, styles.errorPlaceholder]}>
@@ -172,6 +196,27 @@ function PhotoDetailModalComponent(
               placeholder="Unassigned"
               placeholderTextColor={colors.icon}
               keyboardType="number-pad"
+            />
+          </View>
+
+          <View style={styles.infoRow}>
+            <ThemedText style={styles.label}>Notes</ThemedText>
+            <BottomSheetTextInput
+              style={[
+                styles.notesInput,
+                {
+                  backgroundColor: colors.background,
+                  color: colors.text,
+                  borderColor: colors.border,
+                },
+              ]}
+              value={notesInput}
+              onChangeText={setNotesInput}
+              placeholder="Add notes..."
+              placeholderTextColor={colors.icon}
+              multiline
+              numberOfLines={4}
+              textAlignVertical="top"
             />
           </View>
         </View>
@@ -247,9 +292,16 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: Spacing.lg,
   },
-  title: {
-    textAlign: 'center',
+  nameSection: {
     marginBottom: Spacing.md,
+  },
+  nameInput: {
+    fontSize: 16,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.sm,
+    borderWidth: 1,
+    marginTop: Spacing.xs,
   },
   image: {
     width: '100%',
@@ -290,6 +342,14 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.sm,
     borderRadius: BorderRadius.sm,
     borderWidth: 1,
+  },
+  notesInput: {
+    fontSize: 16,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.sm,
+    borderWidth: 1,
+    minHeight: 100,
   },
   actions: {
     gap: Spacing.sm,

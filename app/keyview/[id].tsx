@@ -25,6 +25,7 @@ export default function KeyViewScreen() {
   const removePhotoKey = usePhotoKeyStore((state: PhotoKeyStore) => state.removePhotoKey);
   const addKeyItem = usePhotoKeyStore((state: PhotoKeyStore) => state.addKeyItem);
   const removeKeyItem = usePhotoKeyStore((state: PhotoKeyStore) => state.removeKeyItem);
+  const updateKeyItem = usePhotoKeyStore((state: PhotoKeyStore) => state.updateKeyItem);
   const moveKeyItemToFloor = usePhotoKeyStore((state: PhotoKeyStore) => state.moveKeyItemToFloor);
   const addFloorplan = usePhotoKeyStore((state: PhotoKeyStore) => state.addFloorplan);
   const updateFloorplan = usePhotoKeyStore((state: PhotoKeyStore) => state.updateFloorplan);
@@ -89,16 +90,20 @@ export default function KeyViewScreen() {
     }
   }, [selectedPhoto]);
 
-  const handleSaveFloor = useCallback((newFloorNumber: string) => {
+  const handleSavePhoto = useCallback((updates: { floorNumber: string; name: string; notes: string }) => {
     if (!id || !selectedPhoto) return;
 
     const { item, floorNumber: currentFloor } = selectedPhoto;
 
-    if (currentFloor !== newFloorNumber) {
-      moveKeyItemToFloor(id, item.id, currentFloor, newFloorNumber);
+    // Update name and notes
+    updateKeyItem(id, currentFloor, item.id, { name: updates.name, notes: updates.notes });
+
+    // Move to new floor if changed
+    if (currentFloor !== updates.floorNumber) {
+      moveKeyItemToFloor(id, item.id, currentFloor, updates.floorNumber);
     }
     setSelectedPhoto(null);
-  }, [id, selectedPhoto, moveKeyItemToFloor]);
+  }, [id, selectedPhoto, updateKeyItem, moveKeyItemToFloor]);
 
   const handleRemovePhoto = useCallback(() => {
     if (!id || !selectedPhoto) return;
@@ -422,7 +427,7 @@ export default function KeyViewScreen() {
       <PhotoDetailModal
         ref={photoDetailRef}
         item={selectedPhoto?.item ?? null}
-        onSave={handleSaveFloor}
+        onSave={handleSavePhoto}
         onRemove={handleRemovePhoto}
         hasFloorplan={selectedPhoto ? !!photoKey.floors[selectedPhoto.floorNumber]?.floorplan : false}
         onAdjustPosition={() => {

@@ -140,14 +140,14 @@ function generateFloorplanWithVectors(
 }
 
 function generateCoverPageHtml(photoKey: PhotoKey): string {
-  const dateCreated = formatDate(photoKey.dateCreated);
+  const exportDate = formatDate(new Date().toISOString());
 
   return `
     <div class="page cover-page">
       <div class="cover-content">
         <h1 class="cover-title">${photoKey.name}</h1>
         <p class="cover-date">Photo Key Report</p>
-        <p class="cover-date">${dateCreated}</p>
+        <p class="cover-date">${exportDate}</p>
       </div>
     </div>
   `;
@@ -235,11 +235,11 @@ function generatePhotoPageHtml(
       <div class="photo-details">
         <div class="detail-row">
           <span class="detail-label">Location:</span>
-          <span class="detail-value mono">${locationStr}</span>
+          <span class="detail-value">${locationStr}</span>
         </div>
         <div class="detail-row">
           <span class="detail-label">Direction:</span>
-          <span class="detail-value mono">${directionStr}</span>
+          <span class="detail-value">${directionStr}</span>
         </div>
         ${item.notes ? `
         <div class="detail-row">
@@ -465,9 +465,6 @@ function generateStyles(): string {
 
       .detail-value {
         font-size: 14px;
-      }
-
-      .mono {
         font-family: 'Courier New', Courier, monospace;
       }
     </style>
@@ -532,11 +529,11 @@ function generatePhotoPageWithCaptureHtml(
       <div class="photo-details">
         <div class="detail-row">
           <span class="detail-label">Location:</span>
-          <span class="detail-value mono">${locationStr}</span>
+          <span class="detail-value">${locationStr}</span>
         </div>
         <div class="detail-row">
           <span class="detail-label">Direction:</span>
-          <span class="detail-value mono">${directionStr}</span>
+          <span class="detail-value">${directionStr}</span>
         </div>
         ${item.notes ? `
         <div class="detail-row">
@@ -728,9 +725,6 @@ function generateStylesWithCaptures(): string {
 
       .detail-value {
         font-size: 14px;
-      }
-
-      .mono {
         font-family: 'Courier New', Courier, monospace;
       }
     </style>
