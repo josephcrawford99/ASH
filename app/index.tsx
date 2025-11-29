@@ -6,9 +6,11 @@ import { usePhotoKeyStore } from '@/store/photoKeyStore';
 import { ThemedView } from '@/components/ThemedView';
 import { ThemedText } from '@/components/ThemedText';
 import { NewPhotoKeyModal } from '@/components/NewPhotoKeyModal';
+import { PlusButton } from '@/components/PlusButton';
 import { useTheme } from '@/hooks/useThemeColor';
-import { Spacing, BorderRadius } from '@/constants/spacing';
+import { Spacing } from '@/constants/spacing';
 import { PhotoKey } from '@/types';
+import { BorderRadius } from '@/constants/spacing';
 
 export default function Index() {
   const { colors } = useTheme();
@@ -66,16 +68,7 @@ export default function Index() {
       <SafeAreaView style={styles.safeArea} edges={['top']}>
         <View style={styles.header}>
           <ThemedText type="title">PHOTO KEYS</ThemedText>
-          <Pressable
-            onPress={handleCreateKey}
-            style={({ pressed }) => [
-              styles.plusButton,
-              { backgroundColor: colors.text },
-              pressed && { opacity: 0.7 },
-            ]}
-          >
-            <ThemedText style={[styles.plusIcon, { color: colors.background }]}>+</ThemedText>
-          </Pressable>
+          <PlusButton onPress={handleCreateKey} />
         </View>
 
         <FlatList
@@ -110,18 +103,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
-  },
-  plusButton: {
-    width: 44,
-    height: 44,
-    borderRadius: BorderRadius.full,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  plusIcon: {
-    fontSize: 28,
-    fontWeight: '300',
-    lineHeight: 32,
   },
   listContainer: {
     flex: 1,

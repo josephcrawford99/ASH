@@ -11,6 +11,7 @@ import { PhotoDetailModal, PhotoDetailModalRef } from '@/components/PhotoDetailM
 import { FloorplanModal, FloorplanModalRef } from '@/components/FloorplanModal';
 import { FloorplanAdjustmentView } from '@/components/FloorplanAdjustmentView';
 import { PhotoKeyMap, PhotoKeyMapRef } from '@/components/PhotoKeyMap';
+import { PlusButton } from '@/components/PlusButton';
 import { PdfExportContainer } from '@/components/PdfExportContainer';
 import { useTheme } from '@/hooks/useThemeColor';
 import { Spacing } from '@/constants/spacing';
@@ -218,16 +219,7 @@ export default function KeyViewScreen() {
         title: photoKey.name.toUpperCase(),
         headerRight: () => (
           <View style={styles.headerRight}>
-            <Pressable
-              onPress={handleAddPhotos}
-              style={({ pressed }) => [
-                styles.plusButton,
-                { backgroundColor: colors.text },
-                pressed && { opacity: 0.7 },
-              ]}
-            >
-              <Ionicons name="add" size={22} color={colors.background} />
-            </Pressable>
+            <PlusButton onPress={handleAddPhotos} size={36} />
             <Pressable
               onPress={handleOpenEditModal}
               style={({ pressed }) => [
@@ -492,13 +484,6 @@ const styles = StyleSheet.create({
   exportPdfButtonText: {
     fontSize: 16,
     fontWeight: '600',
-  },
-  plusButton: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    justifyContent: 'center',
-    alignItems: 'center',
   },
   editButton: {
     paddingHorizontal: Spacing.sm,

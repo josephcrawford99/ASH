@@ -179,7 +179,7 @@ function PhotoDetailModalComponent(
               onChangeText={setFloorInput}
               placeholder="Unassigned"
               placeholderTextColor={colors.icon}
-              keyboardType="number-pad"
+              keyboardType="numbers-and-punctuation"
             />
           </View>
         </View>

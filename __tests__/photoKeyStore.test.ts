@@ -644,6 +644,67 @@ describe('PhotoKeyStore', () => {
       expect(stateAfter.photoKeys[id1].floors.unassigned.keyitems).toHaveLength(1);
       expect(stateAfter.photoKeys[id2].floors.unassigned.keyitems).toHaveLength(0);
     });
+
+    it('maintains separate photo counts across keys', () => {
+      const store = useStore.getState();
+      const idA = store.addPhotoKey('Key A');
+      const idB = store.addPhotoKey('Key B');
+
+      // Add 2 photos to Key A
+      useStore.getState().addKeyItem(idA, 'unassigned', createTestKeyItem({ name: 'A1' }));
+      useStore.getState().addKeyItem(idA, 'unassigned', createTestKeyItem({ name: 'A2' }));
+
+      // Add 3 photos to Key B
+      useStore.getState().addKeyItem(idB, 'unassigned', createTestKeyItem({ name: 'B1' }));
+      useStore.getState().addKeyItem(idB, 'unassigned', createTestKeyItem({ name: 'B2' }));
+      useStore.getState().addKeyItem(idB, 'unassigned', createTestKeyItem({ name: 'B3' }));
+
+      const state = useStore.getState();
+      expect(state.photoKeys[idA].floors.unassigned.keyitems).toHaveLength(2);
+      expect(state.photoKeys[idB].floors.unassigned.keyitems).toHaveLength(3);
+    });
+
+    it('deleting one key does not affect others', () => {
+      const store = useStore.getState();
+      const idA = store.addPhotoKey('Key A');
+      const idB = store.addPhotoKey('Key B');
+
+      useStore.getState().addKeyItem(idA, 'unassigned', createTestKeyItem());
+      useStore.getState().addKeyItem(idB, 'unassigned', createTestKeyItem());
+
+      useStore.getState().removePhotoKey(idA);
+
+      const state = useStore.getState();
+      expect(state.photoKeys[idA]).toBeUndefined();
+      expect(state.photoKeys[idB]).toBeDefined();
+      expect(state.photoKeys[idB].floors.unassigned.keyitems).toHaveLength(1);
+    });
+  });
+
+  describe('deleting photo key', () => {
+    it('removes all photos when key is deleted', () => {
+      const id = useStore.getState().addPhotoKey('Test');
+
+      useStore.getState().addKeyItem(id, 'unassigned', createTestKeyItem());
+      useStore.getState().addKeyItem(id, '1', createTestKeyItem());
+      useStore.getState().addKeyItem(id, '2', createTestKeyItem());
+
+      expect(Object.keys(useStore.getState().photoKeys[id].floors).length).toBeGreaterThan(1);
+
+      useStore.getState().removePhotoKey(id);
+
+      expect(useStore.getState().photoKeys[id]).toBeUndefined();
+    });
+
+    it('allows creating new key after deletion', () => {
+      const id1 = useStore.getState().addPhotoKey('First');
+      useStore.getState().removePhotoKey(id1);
+
+      const id2 = useStore.getState().addPhotoKey('Second');
+
+      expect(useStore.getState().photoKeys[id2]).toBeDefined();
+      expect(useStore.getState().photoKeys[id2].name).toBe('Second');
+    });
   });
 
   describe('updateKeyItem', () => {
