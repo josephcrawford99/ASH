@@ -186,6 +186,26 @@ export default function KeyViewScreen() {
     return photoKey.floors[selectedFloorForFloorplan]?.floorplan ?? null;
   }, [photoKey, selectedFloorForFloorplan]);
 
+  // Get vectors for the selected floor (for FloorKey preview)
+  const selectedFloorVectors = useMemo(() => {
+    if (!photoKey || !selectedFloorForFloorplan) return [];
+    const keyitems = photoKey.floors[selectedFloorForFloorplan]?.keyitems ?? [];
+    // Calculate global index for each item
+    let globalIndex = 1;
+    for (const [floorNum, floor] of Object.entries(photoKey.floors)) {
+      if (floorNum === selectedFloorForFloorplan) break;
+      globalIndex += floor.keyitems.length;
+    }
+    return keyitems
+      .filter(item => item.coordinates !== null)
+      .map((item, idx) => ({
+        id: item.id,
+        number: globalIndex + idx,
+        direction: item.direction,
+        coordinates: item.coordinates!,
+      }));
+  }, [photoKey, selectedFloorForFloorplan]);
+
   // Handle opening the floorplan adjustment view (for existing floorplan)
   const handleOpenAdjustment = useCallback(() => {
     if (!selectedFloorForFloorplan || !photoKey) return;
@@ -451,6 +471,7 @@ export default function KeyViewScreen() {
         ref={floorplanModalRef}
         floorNumber={selectedFloorForFloorplan ?? ''}
         floorplan={selectedFloorFloorplan}
+        vectors={selectedFloorVectors}
         onPickImage={handlePickFloorplanImage}
         onAdjustPosition={selectedFloorFloorplan ? handleOpenAdjustment : undefined}
       />

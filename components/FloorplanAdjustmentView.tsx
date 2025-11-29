@@ -52,21 +52,28 @@ export function FloorplanAdjustmentView({
   }, [visible, floorplan.imageUri]);
 
   // Calculate container size to match floorplan aspect ratio
+  // Must fit within available space (screen minus header and safe areas)
   const containerSize = useMemo(() => {
     if (!imageDimensions) return null;
 
     const { width, height } = imageDimensions;
     const aspect = width / height;
-    const maxWidth = screenWidth;
 
-    // Calculate dimensions that fit the screen width while maintaining aspect ratio
-    if (aspect >= 1) {
-      // Wider than tall
-      return { width: maxWidth, height: maxWidth / aspect };
-    } else {
-      // Taller than wide - still fit to width
-      return { width: maxWidth, height: maxWidth / aspect };
+    // Available space: screen width and height minus header (~56) and safe areas
+    const maxWidth = screenWidth - Spacing.lg * 2; // Add some padding
+    const maxHeight = screenWidth * 1.2; // Limit height to ~120% of width to leave room for header
+
+    // Calculate dimensions that fit within bounds while maintaining aspect ratio
+    let containerWidth = maxWidth;
+    let containerHeight = maxWidth / aspect;
+
+    // If too tall, constrain by height instead
+    if (containerHeight > maxHeight) {
+      containerHeight = maxHeight;
+      containerWidth = maxHeight * aspect;
     }
+
+    return { width: containerWidth, height: containerHeight };
   }, [imageDimensions, screenWidth]);
 
   // Filter items with GPS coordinates
@@ -276,12 +283,6 @@ export function FloorplanAdjustmentView({
           )}
         </View>
 
-        {/* Instructions */}
-        <View style={styles.instructions}>
-          <ThemedText style={styles.instructionText}>
-            Pinch to zoom and drag the map to align the markers with the floorplan
-          </ThemedText>
-        </View>
       </View>
     </Modal>
   );
@@ -352,15 +353,5 @@ const styles = StyleSheet.create({
     fontSize: 14,
     textAlign: 'center',
     opacity: 0.5,
-  },
-  instructions: {
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
-    alignItems: 'center',
-  },
-  instructionText: {
-    fontSize: 13,
-    opacity: 0.6,
-    textAlign: 'center',
   },
 });

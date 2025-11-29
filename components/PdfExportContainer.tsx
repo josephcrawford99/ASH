@@ -239,6 +239,7 @@ export function PdfExportContainer({
             const vectors = floor.keyitems
               .filter((item) => item.coordinates !== null)
               .map((item) => ({
+                id: item.id,
                 number: (itemIndices.get(item.id) ?? 0) + 1,
                 direction: item.direction,
                 coordinates: item.coordinates!,
@@ -268,6 +269,7 @@ export function PdfExportContainer({
             if (!item || !item.coordinates) return null;
 
             const singleVector = [{
+              id: item.id,
               number: itemIndex + 1,
               direction: item.direction,
               coordinates: item.coordinates,

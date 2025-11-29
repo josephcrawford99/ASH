@@ -1,5 +1,5 @@
 import { useCallback, useMemo, forwardRef, useImperativeHandle, useRef, useState, useEffect } from 'react';
-import { View, StyleSheet, Pressable, Image } from 'react-native';
+import { View, StyleSheet, Pressable, Image, useWindowDimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import {
   BottomSheetModal,
@@ -7,6 +7,7 @@ import {
   BottomSheetScrollView,
 } from '@gorhom/bottom-sheet';
 import { ThemedText } from './ThemedText';
+import { FloorKey, FloorKeyVector } from './FloorKey';
 import { useTheme } from '@/hooks/useThemeColor';
 import { Spacing, BorderRadius } from '@/constants/spacing';
 import { Floorplan } from '@/types';
@@ -14,6 +15,7 @@ import { Floorplan } from '@/types';
 interface FloorplanModalProps {
   floorNumber: string;
   floorplan: Floorplan | null;
+  vectors?: FloorKeyVector[]; // Vectors to show on preview
   onPickImage: () => void;
   onAdjustPosition?: () => void;
   onDismiss?: () => void;
@@ -25,14 +27,28 @@ export interface FloorplanModalRef {
 }
 
 function FloorplanModalComponent(
-  { floorNumber, floorplan, onPickImage, onAdjustPosition, onDismiss }: FloorplanModalProps,
+  { floorNumber, floorplan, vectors = [], onPickImage, onAdjustPosition, onDismiss }: FloorplanModalProps,
   ref: React.ForwardedRef<FloorplanModalRef>
 ) {
   const { colors } = useTheme();
+  const { width: screenWidth } = useWindowDimensions();
   const bottomSheetRef = useRef<BottomSheetModal>(null);
   const [imageError, setImageError] = useState(false);
 
-  const snapPoints = useMemo(() => ['55%'], []);
+  const snapPoints = useMemo(() => ['60%'], []);
+
+  // Check if floorplan has been positioned (has non-default coordinates)
+  const hasPosition = useMemo(() => {
+    if (!floorplan) return false;
+    return (
+      floorplan.centerCoordinates.latitude !== 0 &&
+      floorplan.centerCoordinates.longitude !== 0 &&
+      floorplan.scale > 0
+    );
+  }, [floorplan]);
+
+  // Preview width (with padding)
+  const previewWidth = screenWidth - Spacing.lg * 4;
 
   // Reset image error when floorplan changes
   useEffect(() => {
@@ -96,6 +112,17 @@ function FloorplanModalComponent(
               <ThemedText style={[styles.errorText, { color: colors.icon }]}>
                 Image unavailable
               </ThemedText>
+            </View>
+          ) : hasPosition && vectors.length > 0 ? (
+            <View style={[styles.previewContainer, { borderRadius: BorderRadius.md }]}>
+              <FloorKey
+                floorplan={floorplan}
+                vectors={vectors}
+                width={previewWidth}
+                vectorSize={28}
+                floorplanOpacity={1}
+                interactive={false}
+              />
             </View>
           ) : (
             <Image
@@ -212,5 +239,10 @@ const styles = StyleSheet.create({
   secondaryButtonText: {
     fontSize: 16,
     fontWeight: '600',
+  },
+  previewContainer: {
+    overflow: 'hidden',
+    marginBottom: Spacing.lg,
+    alignSelf: 'center',
   },
 });
