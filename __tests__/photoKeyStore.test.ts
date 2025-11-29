@@ -682,4 +682,86 @@ describe('PhotoKeyStore', () => {
       expect(newModified >= initialModified).toBe(true);
     });
   });
+
+  describe('special characters and edge cases', () => {
+    it('handles photo key names with special characters', () => {
+      const id = useStore.getState().addPhotoKey('Test #1 @ Building (Main)');
+
+      const photoKey = useStore.getState().photoKeys[id];
+      expect(photoKey.name).toBe('Test #1 @ Building (Main)');
+    });
+
+    it('handles photo key names with emoji', () => {
+      const id = useStore.getState().addPhotoKey('Building Survey 🏢');
+
+      const photoKey = useStore.getState().photoKeys[id];
+      expect(photoKey.name).toBe('Building Survey 🏢');
+    });
+
+    it('handles photo key names with unicode characters', () => {
+      const id = useStore.getState().addPhotoKey('Café & Résumé — Test');
+
+      const photoKey = useStore.getState().photoKeys[id];
+      expect(photoKey.name).toBe('Café & Résumé — Test');
+    });
+
+    it('handles very long photo key names', () => {
+      const longName = 'A'.repeat(200);
+      const id = useStore.getState().addPhotoKey(longName);
+
+      const photoKey = useStore.getState().photoKeys[id];
+      expect(photoKey.name).toBe(longName);
+      expect(photoKey.name.length).toBe(200);
+    });
+  });
+
+  describe('multi-digit floor numbers', () => {
+    it('handles floor number 10', () => {
+      const photoKeyId = useStore.getState().addPhotoKey('Test');
+      const item = createTestKeyItem({ floorNumber: '10' });
+
+      useStore.getState().addKeyItem(photoKeyId, '10', item);
+
+      const photoKey = useStore.getState().photoKeys[photoKeyId];
+      expect(photoKey.floors['10']).toBeDefined();
+      expect(photoKey.floors['10'].keyitems).toHaveLength(1);
+    });
+
+    it('handles floor number 99', () => {
+      const photoKeyId = useStore.getState().addPhotoKey('Test');
+      const item = createTestKeyItem({ floorNumber: '99' });
+
+      useStore.getState().addKeyItem(photoKeyId, '99', item);
+
+      const photoKey = useStore.getState().photoKeys[photoKeyId];
+      expect(photoKey.floors['99']).toBeDefined();
+    });
+
+    it('moves item to multi-digit floor', () => {
+      const photoKeyId = useStore.getState().addPhotoKey('Test');
+      const item = createTestKeyItem();
+
+      useStore.getState().addKeyItem(photoKeyId, 'unassigned', item);
+      useStore.getState().moveKeyItemToFloor(photoKeyId, item.id, 'unassigned', '15');
+
+      const photoKey = useStore.getState().photoKeys[photoKeyId];
+      expect(photoKey.floors['15'].keyitems).toHaveLength(1);
+      expect(photoKey.floors['15'].keyitems[0].floorNumber).toBe('15');
+    });
+
+    it('keeps floors 1 and 10 separate', () => {
+      const photoKeyId = useStore.getState().addPhotoKey('Test');
+      const item1 = createTestKeyItem({ name: 'Floor 1 Photo' });
+      const item10 = createTestKeyItem({ name: 'Floor 10 Photo' });
+
+      useStore.getState().addKeyItem(photoKeyId, '1', item1);
+      useStore.getState().addKeyItem(photoKeyId, '10', item10);
+
+      const photoKey = useStore.getState().photoKeys[photoKeyId];
+      expect(photoKey.floors['1'].keyitems).toHaveLength(1);
+      expect(photoKey.floors['10'].keyitems).toHaveLength(1);
+      expect(photoKey.floors['1'].keyitems[0].name).toBe('Floor 1 Photo');
+      expect(photoKey.floors['10'].keyitems[0].name).toBe('Floor 10 Photo');
+    });
+  });
 });

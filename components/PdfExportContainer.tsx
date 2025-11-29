@@ -3,6 +3,7 @@ import { View, StyleSheet, ActivityIndicator } from 'react-native';
 import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
 import { FloorplanCapture } from './FloorplanCapture';
 import { ThemedText } from './ThemedText';
+import { useTheme } from '@/hooks/useThemeColor';
 import { PhotoKey, Floorplan } from '@/types';
 import { exportPhotoKeyToPdfWithCaptures, loadVectorAsset } from '@/utils/pdfExport';
 
@@ -37,6 +38,7 @@ export function PdfExportContainer({
   visible,
   onComplete,
 }: PdfExportContainerProps) {
+  const { colors } = useTheme();
   // Floor intro captures (all vectors on floor)
   const [floorIntroCaptured, setFloorIntroCaptured] = useState<Record<string, string>>({});
   // Individual item captures (single vector)
@@ -102,12 +104,18 @@ export function PdfExportContainer({
 
   // Phase 1: Convert all floorplan URIs to base64 data URIs AND load vector asset
   useEffect(() => {
-    if (!visible || isConverting || pendingFloorIntros !== -1) return;
+    if (!visible || isConverting || isGenerating || pendingFloorIntros !== -1) return;
 
     // No floors to capture - proceed directly to PDF generation
     if (floorsToCapture.length === 0) {
-      setPendingFloorIntros(0);
-      setPendingItems(0);
+      setIsGenerating(true);
+      exportPhotoKeyToPdfWithCaptures(photoKey, {}, {})
+        .then((result) => {
+          onComplete(result.success, result.error);
+        })
+        .catch((error) => {
+          onComplete(false, error instanceof Error ? error.message : 'Export failed');
+        });
       return;
     }
 
@@ -142,7 +150,7 @@ export function PdfExportContainer({
     };
 
     convertAll();
-  }, [visible, isConverting, pendingFloorIntros, floorsToCapture, itemsToCapture.length]);
+  }, [visible, isConverting, isGenerating, pendingFloorIntros, floorsToCapture, itemsToCapture.length, photoKey, onComplete]);
 
   // Reset state when becoming visible
   useEffect(() => {
@@ -217,8 +225,8 @@ export function PdfExportContainer({
   return (
     <View style={styles.container}>
       {/* Status indicator */}
-      <View style={styles.statusContainer}>
-        <ActivityIndicator size="large" color="#007AFF" />
+      <View style={[styles.statusContainer, { backgroundColor: colors.cardBackground }]}>
+        <ActivityIndicator size="large" color={colors.text} />
         <ThemedText style={styles.statusText}>{getStatusText()}</ThemedText>
       </View>
 
@@ -297,7 +305,6 @@ const styles = StyleSheet.create({
     zIndex: 1000,
   },
   statusContainer: {
-    backgroundColor: 'white',
     padding: 24,
     borderRadius: 12,
     alignItems: 'center',
