@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import {
   Modal,
   View,
@@ -8,6 +8,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
+import type { TextInput as TextInputType } from 'react-native';
 import { ThemedText } from './ThemedText';
 import { useTheme } from '@/hooks/useThemeColor';
 import { Spacing, BorderRadius } from '@/constants/spacing';
@@ -22,6 +23,11 @@ interface NewPhotoKeyModalProps {
 export function NewPhotoKeyModal({ visible, onClose, onCreate }: NewPhotoKeyModalProps) {
   const { colors } = useTheme();
   const [name, setName] = useState('');
+  const inputRef = useRef<TextInputType>(null);
+
+  const dismissKeyboard = () => {
+    inputRef.current?.blur();
+  };
 
   const handleCreate = () => {
     if (name.trim()) {
@@ -52,7 +58,8 @@ export function NewPhotoKeyModal({ visible, onClose, onCreate }: NewPhotoKeyModa
           <View style={styles.backdropInner} />
         </Pressable>
 
-        <View
+        <Pressable
+          onPress={dismissKeyboard}
           style={[
             styles.card,
             { backgroundColor: colors.cardBackground, borderColor: colors.cardBorder },
@@ -63,6 +70,7 @@ export function NewPhotoKeyModal({ visible, onClose, onCreate }: NewPhotoKeyModa
           </ThemedText>
 
           <TextInput
+            ref={inputRef}
             style={[
               styles.input,
               {
@@ -94,7 +102,7 @@ export function NewPhotoKeyModal({ visible, onClose, onCreate }: NewPhotoKeyModa
               Create
             </ThemedText>
           </Pressable>
-        </View>
+        </Pressable>
       </KeyboardAvoidingView>
     </Modal>
   );
