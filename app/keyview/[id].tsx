@@ -15,7 +15,7 @@ import { PdfExportContainer } from '@/components/PdfExportContainer';
 import { useTheme } from '@/hooks/useThemeColor';
 import { Spacing } from '@/constants/spacing';
 import { pickAndImportPhotos, pickFloorplanImage } from '@/utils/photoImport';
-import { KeyItem, Coordinates } from '@/types';
+import { KeyItem, Coordinates, Floorplan } from '@/types';
 
 export default function KeyViewScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -37,7 +37,8 @@ export default function KeyViewScreen() {
   const [isExporting, setIsExporting] = useState(false);
   const [selectedPhoto, setSelectedPhoto] = useState<{ item: KeyItem; floorNumber: string } | null>(null);
   const [selectedFloorForFloorplan, setSelectedFloorForFloorplan] = useState<string | null>(null);
-  const [showFloorplanAdjustment, setShowFloorplanAdjustment] = useState(false);
+  // Floorplan being adjusted - holds the current floorplan data during adjustment
+  const [adjustingFloorplan, setAdjustingFloorplan] = useState<{ floorNumber: string; floorplan: Floorplan; keyitems: KeyItem[] } | null>(null);
 
   const handleOpenEditModal = useCallback(() => {
     editModalRef.current?.present();
@@ -142,7 +143,7 @@ export default function KeyViewScreen() {
 
   // Handle picking a new floorplan image
   const handlePickFloorplanImage = useCallback(async () => {
-    if (!id || !selectedFloorForFloorplan || isPickingFloorplan) return;
+    if (!id || !selectedFloorForFloorplan || isPickingFloorplan || !photoKey) return;
 
     setIsPickingFloorplan(true);
     try {
@@ -155,7 +156,16 @@ export default function KeyViewScreen() {
       }
 
       if (result.floorplan) {
+        // Save floorplan to store
         addFloorplan(id, selectedFloorForFloorplan, result.floorplan);
+        // Get current key items for this floor
+        const keyitems = photoKey.floors[selectedFloorForFloorplan]?.keyitems ?? [];
+        // Open adjustment view immediately with the new floorplan
+        setAdjustingFloorplan({
+          floorNumber: selectedFloorForFloorplan,
+          floorplan: result.floorplan,
+          keyitems,
+        });
       }
     } catch {
       Alert.alert('Error', 'Failed to add floorplan');
@@ -163,7 +173,7 @@ export default function KeyViewScreen() {
       setIsPickingFloorplan(false);
       setSelectedFloorForFloorplan(null);
     }
-  }, [id, selectedFloorForFloorplan, isPickingFloorplan, addFloorplan, getFloorCenterCoordinates]);
+  }, [id, selectedFloorForFloorplan, isPickingFloorplan, photoKey, addFloorplan, getFloorCenterCoordinates]);
 
   // Get the current floorplan for the selected floor
   const selectedFloorFloorplan = useMemo(() => {
@@ -171,30 +181,32 @@ export default function KeyViewScreen() {
     return photoKey.floors[selectedFloorForFloorplan]?.floorplan ?? null;
   }, [photoKey, selectedFloorForFloorplan]);
 
-  // Get the key items for the selected floor
-  const selectedFloorKeyItems = useMemo(() => {
-    if (!photoKey || !selectedFloorForFloorplan) return [];
-    return photoKey.floors[selectedFloorForFloorplan]?.keyitems ?? [];
-  }, [photoKey, selectedFloorForFloorplan]);
-
-  // Handle opening the floorplan adjustment view
+  // Handle opening the floorplan adjustment view (for existing floorplan)
   const handleOpenAdjustment = useCallback(() => {
-    setShowFloorplanAdjustment(true);
-  }, []);
+    if (!selectedFloorForFloorplan || !photoKey) return;
+    const floor = photoKey.floors[selectedFloorForFloorplan];
+    if (!floor?.floorplan) return;
+
+    setAdjustingFloorplan({
+      floorNumber: selectedFloorForFloorplan,
+      floorplan: floor.floorplan,
+      keyitems: floor.keyitems,
+    });
+  }, [selectedFloorForFloorplan, photoKey]);
 
   // Handle saving floorplan adjustments
   const handleSaveAdjustment = useCallback(
     (updates: { centerCoordinates: { latitude: number; longitude: number }; rotation: number; scale: number }) => {
-      if (!id || !selectedFloorForFloorplan) return;
-      updateFloorplan(id, selectedFloorForFloorplan, updates);
-      setShowFloorplanAdjustment(false);
+      if (!id || !adjustingFloorplan) return;
+      updateFloorplan(id, adjustingFloorplan.floorNumber, updates);
+      setAdjustingFloorplan(null);
     },
-    [id, selectedFloorForFloorplan, updateFloorplan]
+    [id, adjustingFloorplan, updateFloorplan]
   );
 
   // Handle canceling floorplan adjustment
   const handleCancelAdjustment = useCallback(() => {
-    setShowFloorplanAdjustment(false);
+    setAdjustingFloorplan(null);
   }, []);
 
   // Handle PDF export
@@ -414,12 +426,17 @@ export default function KeyViewScreen() {
         onRemove={handleRemovePhoto}
         hasFloorplan={selectedPhoto ? !!photoKey.floors[selectedPhoto.floorNumber]?.floorplan : false}
         onAdjustPosition={() => {
-          // TODO: Implement individual photo position adjustment
-          // For now, just close the modal and open the floor's floorplan adjustment
-          if (selectedPhoto) {
-            setSelectedFloorForFloorplan(selectedPhoto.floorNumber);
-            photoDetailRef.current?.dismiss();
-            setShowFloorplanAdjustment(true);
+          // Open the floor's floorplan adjustment view
+          if (selectedPhoto && photoKey) {
+            const floor = photoKey.floors[selectedPhoto.floorNumber];
+            if (floor?.floorplan) {
+              photoDetailRef.current?.dismiss();
+              setAdjustingFloorplan({
+                floorNumber: selectedPhoto.floorNumber,
+                floorplan: floor.floorplan,
+                keyitems: floor.keyitems,
+              });
+            }
           }
         }}
         onShowOnMap={handleShowOnMap}
@@ -433,11 +450,11 @@ export default function KeyViewScreen() {
         onAdjustPosition={selectedFloorFloorplan ? handleOpenAdjustment : undefined}
       />
 
-      {selectedFloorFloorplan && (
+      {adjustingFloorplan && (
         <FloorplanAdjustmentView
-          visible={showFloorplanAdjustment}
-          floorplan={selectedFloorFloorplan}
-          keyitems={selectedFloorKeyItems}
+          visible={true}
+          floorplan={adjustingFloorplan.floorplan}
+          keyitems={adjustingFloorplan.keyitems}
           onSave={handleSaveAdjustment}
           onCancel={handleCancelAdjustment}
         />
