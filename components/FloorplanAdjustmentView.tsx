@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
-import { View, StyleSheet, Modal, Pressable, Image } from 'react-native';
+import { View, StyleSheet, Modal, Pressable, Image, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import MapView, { Marker, PROVIDER_DEFAULT, Region } from 'react-native-maps';
 import { Ionicons } from '@expo/vector-icons';
@@ -27,9 +27,47 @@ export function FloorplanAdjustmentView({
   const { colors, theme } = useTheme();
   const insets = useSafeAreaInsets();
   const mapRef = useRef<MapView>(null);
+  const { width: screenWidth } = useWindowDimensions();
 
   // Track current map region for saving
   const [currentRegion, setCurrentRegion] = useState<Region | null>(null);
+
+  // Track floorplan image dimensions
+  const [imageDimensions, setImageDimensions] = useState<{ width: number; height: number } | null>(null);
+
+  // Get floorplan image dimensions when visible
+  useEffect(() => {
+    if (visible && floorplan.imageUri) {
+      Image.getSize(
+        floorplan.imageUri,
+        (width, height) => {
+          setImageDimensions({ width, height });
+        },
+        () => {
+          // Fallback to square
+          setImageDimensions({ width: 1, height: 1 });
+        }
+      );
+    }
+  }, [visible, floorplan.imageUri]);
+
+  // Calculate container size to match floorplan aspect ratio
+  const containerSize = useMemo(() => {
+    if (!imageDimensions) return null;
+
+    const { width, height } = imageDimensions;
+    const aspect = width / height;
+    const maxWidth = screenWidth;
+
+    // Calculate dimensions that fit the screen width while maintaining aspect ratio
+    if (aspect >= 1) {
+      // Wider than tall
+      return { width: maxWidth, height: maxWidth / aspect };
+    } else {
+      // Taller than wide - still fit to width
+      return { width: maxWidth, height: maxWidth / aspect };
+    }
+  }, [imageDimensions, screenWidth]);
 
   // Filter items with GPS coordinates
   const markersWithCoords = useMemo(() => {
@@ -194,43 +232,47 @@ export function FloorplanAdjustmentView({
           </Pressable>
         </View>
 
-        {/* Map container with floorplan overlay */}
-        <View style={styles.mapContainer}>
-          {/* MapView - user can pan and zoom this */}
-          <MapView
-            ref={mapRef}
-            style={styles.map}
-            provider={PROVIDER_DEFAULT}
-            initialRegion={initialRegion}
-            onRegionChangeComplete={setCurrentRegion}
-            showsUserLocation={false}
-            showsMyLocationButton={false}
-            showsCompass={false}
-            rotateEnabled={false}
-            userInterfaceStyle={theme}
-          >
-            {/* KeyVector markers at their GPS positions */}
-            {markersWithCoords.map(({ item, index }) => (
-              <Marker
-                key={item.id}
-                coordinate={item.coordinates as Coordinates}
-                anchor={{ x: 0.5, y: 0.5 }}
-                flat={true}
-                tracksViewChanges={false}
+        {/* Map container - sized to match floorplan aspect ratio */}
+        <View style={styles.mapWrapper}>
+          {containerSize && (
+            <View style={[styles.mapContainer, { width: containerSize.width, height: containerSize.height }]}>
+              {/* MapView - user can pan and zoom this */}
+              <MapView
+                ref={mapRef}
+                style={styles.map}
+                provider={PROVIDER_DEFAULT}
+                initialRegion={initialRegion}
+                onRegionChangeComplete={setCurrentRegion}
+                showsUserLocation={false}
+                showsMyLocationButton={false}
+                showsCompass={false}
+                rotateEnabled={false}
+                userInterfaceStyle={theme}
               >
-                <KeyVector number={index + 1} direction={item.direction} size={36} />
-              </Marker>
-            ))}
-          </MapView>
+                {/* KeyVector markers at their GPS positions */}
+                {markersWithCoords.map(({ item, index }) => (
+                  <Marker
+                    key={item.id}
+                    coordinate={item.coordinates as Coordinates}
+                    anchor={{ x: 0.5, y: 0.5 }}
+                    flat={true}
+                    tracksViewChanges={false}
+                  >
+                    <KeyVector number={index + 1} direction={item.direction} size={36} />
+                  </Marker>
+                ))}
+              </MapView>
 
-          {/* Floorplan overlay - fixed on top, semi-transparent */}
-          <View style={styles.floorplanOverlay} pointerEvents="none">
-            <Image
-              source={{ uri: floorplan.imageUri }}
-              style={styles.floorplanImage}
-              resizeMode="contain"
-            />
-          </View>
+              {/* Floorplan overlay - fills container exactly (same aspect ratio) */}
+              <View style={styles.floorplanOverlay} pointerEvents="none">
+                <Image
+                  source={{ uri: floorplan.imageUri }}
+                  style={styles.floorplanImage}
+                  resizeMode="cover"
+                />
+              </View>
+            </View>
+          )}
         </View>
 
         {/* Instructions */}
@@ -273,18 +315,20 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     textAlign: 'right',
   },
-  mapContainer: {
+  mapWrapper: {
     flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  mapContainer: {
     position: 'relative',
   },
   map: {
-    flex: 1,
+    width: '100%',
+    height: '100%',
   },
   floorplanOverlay: {
     ...StyleSheet.absoluteFillObject,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: Spacing.xl,
   },
   floorplanImage: {
     width: '100%',

@@ -1,6 +1,7 @@
-import React, { useRef, useCallback } from 'react';
+import React, { useRef, useCallback, useState, useEffect } from 'react';
 import { View, Image, Text, StyleSheet } from 'react-native';
 import { captureRef } from 'react-native-view-shot';
+import MapView, { Marker, PROVIDER_DEFAULT, Region } from 'react-native-maps';
 import { Floorplan, Coordinates } from '@/types';
 
 interface VectorData {
@@ -12,15 +13,12 @@ interface VectorData {
 interface FloorplanCaptureProps {
   floorplan: Floorplan;
   vectors: VectorData[];
-  vectorBase64: string; // base64 data URI for vector.png
-  width?: number;
-  height?: number;
+  vectorBase64: string;
+  maxSize?: number; // Max dimension (will scale proportionally)
   vectorSize?: number;
   onCapture: (base64: string) => void;
 }
 
-// KeyVector that uses base64 data URI instead of require()
-// Data URIs load synchronously, ensuring vector is rendered before capture
 interface CaptureKeyVectorProps {
   number: number;
   direction: number | null;
@@ -47,49 +45,57 @@ function CaptureKeyVector({ number, direction, size, vectorBase64 }: CaptureKeyV
   );
 }
 
-// Calculate pixel position of a marker on the floorplan
-function calculatePosition(
-  markerCoords: Coordinates,
-  floorplan: Floorplan,
-  width: number,
-  height: number
-): { x: number; y: number } | null {
-  if (!floorplan.centerCoordinates || floorplan.scale <= 0) {
-    return null;
-  }
-
-  const deltaLat = markerCoords.latitude - floorplan.centerCoordinates.latitude;
-  const deltaLng = markerCoords.longitude - floorplan.centerCoordinates.longitude;
-
-  // scale = latitudeDelta, rotation = longitudeDelta (repurposed)
-  const latDelta = floorplan.scale;
-  const lngDelta = floorplan.rotation > 0 ? floorplan.rotation : floorplan.scale;
-
-  // Convert to percentage then to pixels
-  const xPercent = 50 + (deltaLng / lngDelta) * 100;
-  const yPercent = 50 - (deltaLat / latDelta) * 100;
-
-  return {
-    x: (xPercent / 100) * width,
-    y: (yPercent / 100) * height,
-  };
-}
-
 export function FloorplanCapture({
   floorplan,
   vectors,
   vectorBase64,
-  width = 400,
-  height = 400,
+  maxSize = 600,
   vectorSize = 36,
   onCapture,
 }: FloorplanCaptureProps) {
   const viewRef = useRef<View>(null);
+  const [mapReady, setMapReady] = useState(false);
+  const [imageLoaded, setImageLoaded] = useState(false);
+  const [imageDimensions, setImageDimensions] = useState<{ width: number; height: number } | null>(null);
 
-  // Capture after image loads and view is painted
-  const handleImageLoad = useCallback(() => {
-    if (viewRef.current) {
-      // Wait for next frame (paint) + extra delay for rendering to complete
+  // Get floorplan image dimensions
+  useEffect(() => {
+    Image.getSize(
+      floorplan.imageUri,
+      (width, height) => {
+        setImageDimensions({ width, height });
+      },
+      () => {
+        // Fallback to square
+        setImageDimensions({ width: maxSize, height: maxSize });
+      }
+    );
+  }, [floorplan.imageUri, maxSize]);
+
+  // Calculate container size based on floorplan dimensions (scaled to maxSize)
+  const containerSize = React.useMemo(() => {
+    if (!imageDimensions) return { width: maxSize, height: maxSize };
+
+    const { width, height } = imageDimensions;
+    const aspect = width / height;
+
+    if (width > height) {
+      return { width: maxSize, height: maxSize / aspect };
+    } else {
+      return { width: maxSize * aspect, height: maxSize };
+    }
+  }, [imageDimensions, maxSize]);
+
+  // The saved region
+  const region: Region = {
+    latitude: floorplan.centerCoordinates.latitude,
+    longitude: floorplan.centerCoordinates.longitude,
+    latitudeDelta: floorplan.scale,
+    longitudeDelta: floorplan.rotation > 0 ? floorplan.rotation : floorplan.scale,
+  };
+
+  const doCapture = useCallback(() => {
+    if (mapReady && imageLoaded && viewRef.current) {
       requestAnimationFrame(() => {
         setTimeout(() => {
           captureRef(viewRef, {
@@ -109,50 +115,77 @@ export function FloorplanCapture({
             });
         }, 500);
       });
-    } else {
-      onCapture('');
     }
-  }, [onCapture]);
+  }, [mapReady, imageLoaded, onCapture]);
 
-  // Calculate positions for all vectors (in pixels)
-  const positionedVectors = vectors
-    .map((v) => {
-      const position = calculatePosition(v.coordinates, floorplan, width, height);
-      if (!position) return null;
-      return { ...v, position };
-    })
-    .filter((v): v is VectorData & { position: { x: number; y: number } } => v !== null);
+  const handleMapReady = useCallback(() => {
+    setMapReady(true);
+  }, []);
+
+  const handleImageLoad = useCallback(() => {
+    setImageLoaded(true);
+  }, []);
+
+  useEffect(() => {
+    if (mapReady && imageLoaded && imageDimensions) {
+      doCapture();
+    }
+  }, [mapReady, imageLoaded, imageDimensions, doCapture]);
+
+  // Don't render until we have dimensions
+  if (!imageDimensions) {
+    return null;
+  }
 
   return (
-    <View ref={viewRef} style={[styles.container, { width, height }]} collapsable={false}>
-      {/* Floorplan image - onLoad triggers capture */}
-      <Image
-        source={{ uri: floorplan.imageUri }}
-        style={styles.floorplanImage}
-        resizeMode="contain"
-        onLoad={handleImageLoad}
-      />
+    <View
+      ref={viewRef}
+      style={[styles.container, { width: containerSize.width, height: containerSize.height }]}
+      collapsable={false}
+    >
+      {/* MapView with markers */}
+      <MapView
+        style={styles.map}
+        provider={PROVIDER_DEFAULT}
+        initialRegion={region}
+        region={region}
+        onMapReady={handleMapReady}
+        scrollEnabled={false}
+        zoomEnabled={false}
+        rotateEnabled={false}
+        pitchEnabled={false}
+        showsUserLocation={false}
+        showsMyLocationButton={false}
+        showsCompass={false}
+        userInterfaceStyle="light"
+      >
+        {vectors.map((v) => (
+          <Marker
+            key={v.number}
+            coordinate={v.coordinates}
+            anchor={{ x: 0.5, y: 0.5 }}
+            flat={true}
+            tracksViewChanges={false}
+          >
+            <CaptureKeyVector
+              number={v.number}
+              direction={v.direction}
+              size={vectorSize}
+              vectorBase64={vectorBase64}
+            />
+          </Marker>
+        ))}
+      </MapView>
 
-      {/* Positioned vectors - using CaptureKeyVector with base64 data URI */}
-      {positionedVectors.map((v) => (
-        <View
-          key={v.number}
-          style={[
-            styles.vectorContainer,
-            {
-              left: v.position.x - vectorSize / 2,
-              top: v.position.y - vectorSize / 2,
-            },
-          ]}
-        >
-          <CaptureKeyVector
-            number={v.number}
-            direction={v.direction}
-            size={vectorSize}
-            vectorBase64={vectorBase64}
-          />
-        </View>
-      ))}
+      {/* Floorplan overlay - fills container exactly (same aspect ratio) */}
+      <View style={styles.floorplanOverlay} pointerEvents="none">
+        <Image
+          source={{ uri: floorplan.imageUri }}
+          style={styles.floorplanImage}
+          resizeMode="cover"
+          onLoad={handleImageLoad}
+        />
+      </View>
     </View>
   );
 }
@@ -162,11 +195,16 @@ const styles = StyleSheet.create({
     position: 'relative',
     backgroundColor: '#FFFFFF',
   },
-  floorplanImage: {
+  map: {
     width: '100%',
     height: '100%',
   },
-  vectorContainer: {
-    position: 'absolute',
+  floorplanOverlay: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  floorplanImage: {
+    width: '100%',
+    height: '100%',
+    opacity: 0.6,
   },
 });
