@@ -1,0 +1,4 @@
+- Photos (stored locally only)
+- No data sent to servers
+- No analytics
+- No tracking
