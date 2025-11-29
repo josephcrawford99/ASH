@@ -251,10 +251,10 @@ export default function KeyViewScreen() {
 
     const floorEntries = Object.entries(photoKey.floors);
 
-    // Sort floors: unassigned first, then numeric floors ascending
+    // Sort floors: numeric floors ascending, then unassigned last
     floorEntries.sort(([a], [b]) => {
-      if (a === 'unassigned') return -1;
-      if (b === 'unassigned') return 1;
+      if (a === 'unassigned') return 1;
+      if (b === 'unassigned') return -1;
       const numA = parseInt(a, 10);
       const numB = parseInt(b, 10);
       if (isNaN(numA) && isNaN(numB)) return a.localeCompare(b);

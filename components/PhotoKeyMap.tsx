@@ -1,5 +1,6 @@
-import React, { useMemo, useRef, useEffect, forwardRef, useImperativeHandle } from 'react';
-import { StyleSheet, View } from 'react-native';
+import React, { useMemo, useRef, useEffect, forwardRef, useImperativeHandle, useCallback } from 'react';
+import { StyleSheet, View, Pressable } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import MapView, { Marker, Region, PROVIDER_DEFAULT } from 'react-native-maps';
 import { KeyVector } from './KeyVector';
 import { KeyItem, Coordinates } from '@/types';
@@ -19,7 +20,7 @@ function PhotoKeyMapComponent(
   { items, onMarkerPress, height = 250 }: PhotoKeyMapProps,
   ref: React.ForwardedRef<PhotoKeyMapRef>
 ) {
-  const { theme } = useTheme();
+  const { theme, colors } = useTheme();
   const mapRef = useRef<MapView>(null);
 
   // Filter items with valid GPS coordinates
@@ -64,6 +65,21 @@ function PhotoKeyMapComponent(
       );
     },
   }));
+
+  // Fit map to show all markers
+  const fitToAllMarkers = useCallback(() => {
+    if (itemsWithCoordinates.length === 0) return;
+
+    const coordinates = itemsWithCoordinates.map((entry) => ({
+      latitude: entry.item.coordinates!.latitude,
+      longitude: entry.item.coordinates!.longitude,
+    }));
+
+    mapRef.current?.fitToCoordinates(coordinates, {
+      edgePadding: { top: 50, right: 50, bottom: 50, left: 50 },
+      animated: true,
+    });
+  }, [itemsWithCoordinates]);
 
   // Fit map to markers when region changes
   useEffect(() => {
@@ -118,6 +134,18 @@ function PhotoKeyMapComponent(
           </Marker>
         ))}
       </MapView>
+
+      {/* Fit all markers button */}
+      <Pressable
+        onPress={fitToAllMarkers}
+        style={({ pressed }) => [
+          styles.fitButton,
+          { backgroundColor: colors.cardBackground },
+          pressed && { opacity: 0.7 },
+        ]}
+      >
+        <Ionicons name="scan-outline" size={20} color={colors.text} />
+      </Pressable>
     </View>
   );
 }
@@ -130,5 +158,20 @@ const styles = StyleSheet.create({
   },
   map: {
     flex: 1,
+  },
+  fitButton: {
+    position: 'absolute',
+    bottom: 12,
+    right: 12,
+    width: 40,
+    height: 40,
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 4,
   },
 });
