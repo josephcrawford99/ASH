@@ -10,7 +10,7 @@ import { KeyItemListItem } from '@/components/KeyItemListItem';
 import { PhotoDetailModal, PhotoDetailModalRef } from '@/components/PhotoDetailModal';
 import { FloorplanModal, FloorplanModalRef } from '@/components/FloorplanModal';
 import { FloorplanAdjustmentView } from '@/components/FloorplanAdjustmentView';
-import { PhotoKeyMap } from '@/components/PhotoKeyMap';
+import { PhotoKeyMap, PhotoKeyMapRef } from '@/components/PhotoKeyMap';
 import { PdfExportContainer } from '@/components/PdfExportContainer';
 import { useTheme } from '@/hooks/useThemeColor';
 import { Spacing } from '@/constants/spacing';
@@ -31,6 +31,7 @@ export default function KeyViewScreen() {
   const editModalRef = useRef<EditKeyModalRef>(null);
   const photoDetailRef = useRef<PhotoDetailModalRef>(null);
   const floorplanModalRef = useRef<FloorplanModalRef>(null);
+  const mapRef = useRef<PhotoKeyMapRef>(null);
   const [isImporting, setIsImporting] = useState(false);
   const [isPickingFloorplan, setIsPickingFloorplan] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
@@ -105,6 +106,16 @@ export default function KeyViewScreen() {
     removeKeyItem(id, floorNumber, item.id);
     setSelectedPhoto(null);
   }, [id, selectedPhoto, removeKeyItem]);
+
+  const handleShowOnMap = useCallback(() => {
+    if (!selectedPhoto?.item.coordinates) return;
+
+    // Small delay to let the modal dismiss animation start
+    setTimeout(() => {
+      mapRef.current?.focusOnCoordinate(selectedPhoto.item.coordinates!);
+    }, 100);
+    setSelectedPhoto(null);
+  }, [selectedPhoto]);
 
   // Calculate average GPS coordinates for a floor's photos
   const getFloorCenterCoordinates = useCallback((floorNumber: string): Coordinates | null => {
@@ -319,6 +330,7 @@ export default function KeyViewScreen() {
           ListHeaderComponent={
             hasGpsItems ? (
               <PhotoKeyMap
+                ref={mapRef}
                 items={mapItems}
                 onMarkerPress={handlePhotoPress}
                 height={250}
@@ -419,6 +431,7 @@ export default function KeyViewScreen() {
             setShowFloorplanAdjustment(true);
           }
         }}
+        onShowOnMap={handleShowOnMap}
       />
 
       <FloorplanModal

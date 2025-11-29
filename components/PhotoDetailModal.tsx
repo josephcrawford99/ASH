@@ -19,6 +19,7 @@ interface PhotoDetailModalProps {
   onRemove: () => void;
   hasFloorplan?: boolean;
   onAdjustPosition?: () => void;
+  onShowOnMap?: () => void;
 }
 
 export interface PhotoDetailModalRef {
@@ -27,7 +28,7 @@ export interface PhotoDetailModalRef {
 }
 
 function PhotoDetailModalComponent(
-  { item, onSave, onRemove, hasFloorplan, onAdjustPosition }: PhotoDetailModalProps,
+  { item, onSave, onRemove, hasFloorplan, onAdjustPosition, onShowOnMap }: PhotoDetailModalProps,
   ref: React.ForwardedRef<PhotoDetailModalRef>
 ) {
   const { colors } = useTheme();
@@ -94,6 +95,11 @@ function PhotoDetailModalComponent(
       ]
     );
   }, [onRemove]);
+
+  const handleShowOnMap = useCallback(() => {
+    bottomSheetRef.current?.dismiss();
+    onShowOnMap?.();
+  }, [onShowOnMap]);
 
   if (!item) return null;
 
@@ -195,6 +201,22 @@ function PhotoDetailModalComponent(
             </Pressable>
           )}
 
+          {item.coordinates && onShowOnMap && (
+            <Pressable
+              onPress={handleShowOnMap}
+              style={({ pressed }) => [
+                styles.showOnMapButton,
+                { borderColor: colors.text },
+                pressed && { opacity: 0.7 },
+              ]}
+            >
+              <Ionicons name="map-outline" size={18} color={colors.text} />
+              <ThemedText style={styles.showOnMapButtonText}>
+                Show on Map
+              </ThemedText>
+            </Pressable>
+          )}
+
           <Pressable
             onPress={handleSave}
             style={({ pressed }) => [
@@ -291,6 +313,19 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   adjustButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  showOnMapButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.sm,
+    padding: Spacing.md,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+  },
+  showOnMapButtonText: {
     fontSize: 16,
     fontWeight: '600',
   },

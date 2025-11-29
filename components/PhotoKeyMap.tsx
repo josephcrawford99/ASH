@@ -1,8 +1,8 @@
-import React, { useMemo, useRef, useEffect } from 'react';
+import React, { useMemo, useRef, useEffect, forwardRef, useImperativeHandle } from 'react';
 import { StyleSheet, View } from 'react-native';
 import MapView, { Marker, Region, PROVIDER_DEFAULT } from 'react-native-maps';
 import { KeyVector } from './KeyVector';
-import { KeyItem } from '@/types';
+import { KeyItem, Coordinates } from '@/types';
 import { useTheme } from '@/hooks/useThemeColor';
 
 interface PhotoKeyMapProps {
@@ -11,7 +11,14 @@ interface PhotoKeyMapProps {
   height?: number;
 }
 
-export function PhotoKeyMap({ items, onMarkerPress, height = 250 }: PhotoKeyMapProps) {
+export interface PhotoKeyMapRef {
+  focusOnCoordinate: (coordinate: Coordinates) => void;
+}
+
+function PhotoKeyMapComponent(
+  { items, onMarkerPress, height = 250 }: PhotoKeyMapProps,
+  ref: React.ForwardedRef<PhotoKeyMapRef>
+) {
   const { theme } = useTheme();
   const mapRef = useRef<MapView>(null);
 
@@ -42,6 +49,21 @@ export function PhotoKeyMap({ items, onMarkerPress, height = 250 }: PhotoKeyMapP
       longitudeDelta: lngDelta,
     };
   }, [itemsWithCoordinates]);
+
+  // Expose focusOnCoordinate method via ref
+  useImperativeHandle(ref, () => ({
+    focusOnCoordinate: (coordinate: Coordinates) => {
+      mapRef.current?.animateToRegion(
+        {
+          latitude: coordinate.latitude,
+          longitude: coordinate.longitude,
+          latitudeDelta: 0.002,
+          longitudeDelta: 0.002,
+        },
+        500
+      );
+    },
+  }));
 
   // Fit map to markers when region changes
   useEffect(() => {
@@ -99,6 +121,8 @@ export function PhotoKeyMap({ items, onMarkerPress, height = 250 }: PhotoKeyMapP
     </View>
   );
 }
+
+export const PhotoKeyMap = forwardRef<PhotoKeyMapRef, PhotoKeyMapProps>(PhotoKeyMapComponent);
 
 const styles = StyleSheet.create({
   container: {
