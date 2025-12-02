@@ -17,7 +17,8 @@
       "bundleIdentifier": "com.joey.ash",
       "buildNumber": "1.0.0",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSPhotoLibraryUsageDescription": "ASH reads your photos' location and direction metadata to accuratelyplace them on the map."
       }
     },
     "plugins": [
