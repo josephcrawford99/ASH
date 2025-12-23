@@ -1,6 +1,6 @@
-import { Text, TextProps, StyleSheet } from 'react-native';
-import { useThemeColor } from '@/hooks/useThemeColor';
 import { Fonts, FontSizes } from '@/constants/typography';
+import { useThemeColor } from '@/hooks/useThemeColor';
+import { StyleSheet, Text, TextProps } from 'react-native';
 
 export type ThemedTextProps = TextProps & {
   lightColor?: string;
@@ -48,8 +48,9 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     fontFamily: Fonts.primary.semiBold,
-    fontSize: FontSizes.lg,
-    lineHeight: 26,
+    fontSize: FontSizes.sm,
+    lineHeight: 18,
+    opacity: 0.6,
   },
   mono: {
     fontFamily: Fonts.secondary,

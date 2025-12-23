@@ -1,21 +1,22 @@
-import { useLayoutEffect, useRef, useCallback, useState, useMemo, useEffect } from 'react';
-import { StyleSheet, View, Pressable, Alert, SectionList } from 'react-native';
-import { useLocalSearchParams, useNavigation, router } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
-import { usePhotoKeyStore, PhotoKeyStore } from '@/store/photoKeyStore';
-import { ThemedView } from '@/components/ThemedView';
-import { ThemedText } from '@/components/ThemedText';
 import { EditKeyModal, EditKeyModalRef } from '@/components/EditKeyModal';
-import { KeyItemListItem } from '@/components/KeyItemListItem';
-import { PhotoDetailModal, PhotoDetailModalRef } from '@/components/PhotoDetailModal';
-import { FloorplanModal, FloorplanModalRef } from '@/components/FloorplanModal';
+import { FloorAssignmentModal, FloorAssignmentModalRef } from '@/components/FloorAssignmentModal';
 import { FloorplanAdjustmentView } from '@/components/FloorplanAdjustmentView';
-import { PhotoKeyMap, PhotoKeyMapRef } from '@/components/PhotoKeyMap';
+import { FloorplanModal, FloorplanModalRef } from '@/components/FloorplanModal';
+import { KeyItemListItem } from '@/components/KeyItemListItem';
 import { PdfExportContainer } from '@/components/PdfExportContainer';
-import { useTheme } from '@/hooks/useThemeColor';
+import { PhotoDetailModal, PhotoDetailModalRef } from '@/components/PhotoDetailModal';
+import { PhotoKeyMap, PhotoKeyMapRef } from '@/components/PhotoKeyMap';
+import { ThemedText } from '@/components/ThemedText';
+import { ThemedView } from '@/components/ThemedView';
 import { Spacing } from '@/constants/spacing';
+import { useTheme } from '@/hooks/useThemeColor';
+import { PhotoKeyStore, usePhotoKeyStore } from '@/store/photoKeyStore';
+import { Coordinates, Floorplan, KeyItem } from '@/types';
 import { pickAndImportPhotos, pickFloorplanImage } from '@/utils/photoImport';
-import { KeyItem, Coordinates, Floorplan } from '@/types';
+import { Ionicons } from '@expo/vector-icons';
+import { router, useLocalSearchParams, useNavigation } from 'expo-router';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { Alert, Pressable, SectionList, StyleSheet, View } from 'react-native';
 
 export default function KeyViewScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -32,7 +33,9 @@ export default function KeyViewScreen() {
   const editModalRef = useRef<EditKeyModalRef>(null);
   const photoDetailRef = useRef<PhotoDetailModalRef>(null);
   const floorplanModalRef = useRef<FloorplanModalRef>(null);
+  const floorAssignmentRef = useRef<FloorAssignmentModalRef>(null);
   const mapRef = useRef<PhotoKeyMapRef>(null);
+  const [pendingPhotoIds, setPendingPhotoIds] = useState<string[]>([]);
   const [isImporting, setIsImporting] = useState(false);
   const [isPickingFloorplan, setIsPickingFloorplan] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
@@ -68,16 +71,39 @@ export default function KeyViewScreen() {
         return;
       }
 
-      // Add each photo to the unassigned floor
+      // Add photos to unassigned first
+      const ids: string[] = [];
       for (const item of result.items) {
         addKeyItem(id, 'unassigned', item);
+        ids.push(item.id);
       }
+
+      // Store IDs and show floor assignment modal
+      setPendingPhotoIds(ids);
+      floorAssignmentRef.current?.present();
     } catch {
       Alert.alert('Error', 'Failed to import photos');
     } finally {
       setIsImporting(false);
     }
   }, [id, isImporting, addKeyItem]);
+
+  const handleFloorAssignment = useCallback((floorNumber: string) => {
+    if (!id || pendingPhotoIds.length === 0) return;
+
+    // Only move if a specific floor was assigned
+    if (floorNumber !== 'unassigned') {
+      for (const itemId of pendingPhotoIds) {
+        moveKeyItemToFloor(id, itemId, 'unassigned', floorNumber);
+      }
+    }
+    setPendingPhotoIds([]);
+  }, [id, pendingPhotoIds, moveKeyItemToFloor]);
+
+  const handleFloorAssignmentDismiss = useCallback(() => {
+    // Photos already in unassigned, just clear pending IDs
+    setPendingPhotoIds([]);
+  }, []);
 
   const handlePhotoPress = useCallback((item: KeyItem, floorNumber: string) => {
     setSelectedPhoto({ item, floorNumber });
@@ -252,6 +278,7 @@ export default function KeyViewScreen() {
   useLayoutEffect(() => {
     if (photoKey) {
       navigation.setOptions({
+        headerBackButtonDisplayMode: 'minimal',
         headerTitle: () => (
           <Pressable
             onPress={handleOpenEditModal}
@@ -263,15 +290,16 @@ export default function KeyViewScreen() {
           </Pressable>
         ),
         headerRight: () => (
-          <Pressable onPress={handleAddPhotos} style={{ alignItems: 'center', marginRight: -35, marginTop: 4 }}>
-            <ThemedText style={{ fontSize: 30, fontWeight: '300', color: colors.tint }}>
-              +
-            </ThemedText>
+          <Pressable
+            onPress={handleAddPhotos}
+            style={{ width: 44,borderRadius: 22, justifyContent: 'center', alignItems: 'center' }}
+          >
+            <Ionicons name="add" size={24} color={colors.text} />
           </Pressable>
         ),
       });
     }
-  }, [navigation, photoKey, colors.tint, handleOpenEditModal, handleAddPhotos]);
+  }, [navigation, photoKey, colors.tint, colors.text, handleOpenEditModal, handleAddPhotos]);
 
   // Build sections for SectionList
   const sections = useMemo(() => {
@@ -346,10 +374,11 @@ export default function KeyViewScreen() {
     <ThemedView style={styles.container}>
       {totalItems === 0 ? (
         <View style={styles.emptyContainer}>
-          <ThemedText style={styles.emptyText}>No photos yet</ThemedText>
-          <ThemedText style={styles.emptySubtext}>
-            Tap the + button to add photos
+          <ThemedText type="subtitle" style={{ marginBottom: Spacing.sm, opacity: 0.8, fontSize: 18 }}>Photo Key is Empty</ThemedText>
+          <ThemedText type="subtitle">
+            Tip: add in your photos one floor at a time
           </ThemedText>
+
         </View>
       ) : (
         <SectionList
@@ -382,8 +411,9 @@ export default function KeyViewScreen() {
             if (isUnassigned) {
               // Unassigned section is not pressable
               return (
-                <View style={[styles.sectionHeader, { backgroundColor: colors.background }]}>
+                <View style={[styles.sectionHeader, { backgroundColor: colors.background, display: 'flex', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }]}>
                   <ThemedText style={styles.sectionHeaderText}>{title}</ThemedText>
+                  <ThemedText style={{ fontSize: 12, opacity: 0.4 }}>click photo to assign floor</ThemedText>
                 </View>
               );
             }
@@ -442,6 +472,13 @@ export default function KeyViewScreen() {
         ref={editModalRef}
         photoKey={photoKey}
         onDelete={handleDeleteKey}
+      />
+
+      <FloorAssignmentModal
+        ref={floorAssignmentRef}
+        photoCount={pendingPhotoIds.length}
+        onConfirm={handleFloorAssignment}
+        onDismiss={handleFloorAssignmentDismiss}
       />
 
       <PhotoDetailModal
@@ -555,15 +592,5 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: Spacing.xl,
-  },
-  emptyText: {
-    fontSize: 18,
-    opacity: 0.5,
-    marginBottom: Spacing.sm,
-  },
-  emptySubtext: {
-    fontSize: 14,
-    opacity: 0.4,
-    textAlign: 'center',
   },
 });

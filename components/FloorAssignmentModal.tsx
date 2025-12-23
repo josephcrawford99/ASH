@@ -1,5 +1,5 @@
 import { useCallback, useMemo, forwardRef, useImperativeHandle, useRef, useState, useEffect } from 'react';
-import { View, StyleSheet, Pressable, Alert } from 'react-native';
+import { View, StyleSheet, Pressable } from 'react-native';
 import {
   BottomSheetModal,
   BottomSheetView,
@@ -10,49 +10,34 @@ import { ThemedText } from './ThemedText';
 import { useTheme } from '@/hooks/useThemeColor';
 import { Spacing, BorderRadius } from '@/constants/spacing';
 import { Fonts } from '@/constants/typography';
-import { PhotoKey } from '@/types';
-import { usePhotoKeyStore, PhotoKeyStore } from '@/store/photoKeyStore';
 
-interface EditKeyModalProps {
-  photoKey: PhotoKey | null;
-  onDelete: () => void;
+interface FloorAssignmentModalProps {
+  photoCount: number;
+  onConfirm: (floorNumber: string) => void;
+  onDismiss: () => void;
 }
 
-export interface EditKeyModalRef {
+export interface FloorAssignmentModalRef {
   present: () => void;
   dismiss: () => void;
 }
 
-function EditKeyModalComponent(
-  { photoKey, onDelete }: EditKeyModalProps,
-  ref: React.ForwardedRef<EditKeyModalRef>
+function FloorAssignmentModalComponent(
+  { photoCount, onConfirm, onDismiss }: FloorAssignmentModalProps,
+  ref: React.ForwardedRef<FloorAssignmentModalRef>
 ) {
   const { colors } = useTheme();
   const bottomSheetRef = useRef<BottomSheetModal>(null);
-  const updatePhotoKey = usePhotoKeyStore((state: PhotoKeyStore) => state.updatePhotoKey);
-  const [name, setName] = useState(photoKey?.name ?? '');
-
-  // Sync local state when photoKey changes
-  useEffect(() => {
-    setName(photoKey?.name ?? '');
-  }, [photoKey?.name]);
-
-  const handleNameChange = useCallback((text: string) => {
-    setName(text);
-  }, []);
-
-  const handleNameBlur = useCallback(() => {
-    if (!photoKey) return;
-    const trimmedName = name.trim();
-    if (trimmedName && trimmedName !== photoKey.name) {
-      updatePhotoKey(photoKey.id, { name: trimmedName });
-    } else if (!trimmedName) {
-      // Reset to original if empty
-      setName(photoKey.name);
-    }
-  }, [photoKey, name, updatePhotoKey]);
+  const [floorInput, setFloorInput] = useState('');
 
   const snapPoints = useMemo(() => ['30%'], []);
+
+  // Reset input when modal is presented
+  useEffect(() => {
+    if (photoCount > 0) {
+      setFloorInput('');
+    }
+  }, [photoCount]);
 
   useImperativeHandle(ref, () => ({
     present: () => bottomSheetRef.current?.present(),
@@ -66,30 +51,21 @@ function EditKeyModalComponent(
         disappearsOnIndex={-1}
         appearsOnIndex={0}
         opacity={0.5}
+        pressBehavior="close"
       />
     ),
     []
   );
 
-  const handleDelete = () => {
-    Alert.alert(
-      'Delete Photo Key',
-      `Are you sure you want to delete "${photoKey?.name}"? This cannot be undone.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: () => {
-            bottomSheetRef.current?.dismiss();
-            onDelete();
-          },
-        },
-      ]
-    );
-  };
+  const handleConfirm = useCallback(() => {
+    const floor = floorInput.trim() || 'unassigned';
+    bottomSheetRef.current?.dismiss();
+    onConfirm(floor);
+  }, [floorInput, onConfirm]);
 
-  if (!photoKey) return null;
+  const handleDismiss = useCallback(() => {
+    onDismiss();
+  }, [onDismiss]);
 
   return (
     <BottomSheetModal
@@ -99,37 +75,43 @@ function EditKeyModalComponent(
       enableDynamicSizing={false}
       backgroundStyle={{ backgroundColor: colors.cardBackground }}
       handleIndicatorStyle={{ backgroundColor: colors.icon }}
+      onDismiss={handleDismiss}
+      keyboardBehavior="interactive"
+      keyboardBlurBehavior="restore"
+      android_keyboardInputMode="adjustResize"
     >
       <BottomSheetView style={styles.content}>
         <ThemedText type="subtitle" style={styles.title}>
-          Edit Key
+          Assign Floor
+        </ThemedText>
+        <ThemedText style={styles.subtitle}>
+          {photoCount} {photoCount === 1 ? 'photo' : 'photos'} selected
         </ThemedText>
 
-        <View style={styles.keyName}>
-          <ThemedText style={styles.label}>Name</ThemedText>
+        <View style={styles.inputContainer}>
+          <ThemedText style={styles.label}>Floor Number</ThemedText>
           <BottomSheetTextInput
-            value={name}
-            onChangeText={handleNameChange}
-            onBlur={handleNameBlur}
-            style={[styles.nameInput, { color: colors.text, borderColor: colors.border }]}
-            placeholder="Photo key name"
+            value={floorInput}
+            onChangeText={setFloorInput}
+            style={[styles.floorInput, { color: colors.text, borderColor: colors.border }]}
+            placeholder="Leave empty for unassigned"
             placeholderTextColor={colors.icon}
-            autoCapitalize="words"
+            keyboardType="number-pad"
             returnKeyType="done"
-            onSubmitEditing={handleNameBlur}
+            onSubmitEditing={handleConfirm}
           />
         </View>
 
         <Pressable
-          onPress={handleDelete}
+          onPress={handleConfirm}
           style={({ pressed }) => [
-            styles.deleteButton,
-            { backgroundColor: colors.error },
+            styles.confirmButton,
+            { backgroundColor: colors.text },
             pressed && { opacity: 0.7 },
           ]}
         >
-          <ThemedText style={[styles.deleteButtonText, { color: '#FFFFFF' }]}>
-            Remove Photo Key
+          <ThemedText style={[styles.confirmButtonText, { color: colors.background }]}>
+            Add Photos
           </ThemedText>
         </Pressable>
       </BottomSheetView>
@@ -137,7 +119,9 @@ function EditKeyModalComponent(
   );
 }
 
-export const EditKeyModal = forwardRef<EditKeyModalRef, EditKeyModalProps>(EditKeyModalComponent);
+export const FloorAssignmentModal = forwardRef<FloorAssignmentModalRef, FloorAssignmentModalProps>(
+  FloorAssignmentModalComponent
+);
 
 const styles = StyleSheet.create({
   content: {
@@ -147,9 +131,14 @@ const styles = StyleSheet.create({
   },
   title: {
     textAlign: 'center',
+    marginBottom: Spacing.xs,
+  },
+  subtitle: {
+    textAlign: 'center',
+    opacity: 0.6,
     marginBottom: Spacing.lg,
   },
-  keyName: {
+  inputContainer: {
     marginBottom: Spacing.xl,
   },
   label: {
@@ -157,7 +146,7 @@ const styles = StyleSheet.create({
     opacity: 0.6,
     marginBottom: Spacing.xs,
   },
-  nameInput: {
+  floorInput: {
     fontFamily: Fonts.primary.regular,
     fontSize: 16,
     paddingVertical: Spacing.sm,
@@ -165,13 +154,13 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: BorderRadius.sm,
   },
-  deleteButton: {
+  confirmButton: {
     padding: Spacing.md,
     borderRadius: BorderRadius.md,
     alignItems: 'center',
     marginTop: 'auto',
   },
-  deleteButtonText: {
+  confirmButtonText: {
     fontSize: 16,
     fontWeight: '600',
   },
