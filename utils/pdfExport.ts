@@ -508,12 +508,16 @@ function generatePhotoPageWithCaptureHtml(
     : 'No direction data';
 
   const imageHtml = imageBase64
-    ? `<img src="${imageBase64}" class="photo-image" />`
-    : `<div class="photo-placeholder">Photo unavailable</div>`;
+    ? `<div class="image-container">
+        <img src="${imageBase64}" class="photo-image" />
+      </div>`
+    : `<div class="image-container">
+        <div class="photo-placeholder">Photo unavailable</div>
+      </div>`;
 
   const floorplanHtml = capturedFloorplanBase64
-    ? `<div class="photo-floorplan-section">
-        <img src="${capturedFloorplanBase64}" class="captured-floorplan-small" />
+    ? `<div class="image-container">
+        <img src="${capturedFloorplanBase64}" class="floorplan-image-large" />
       </div>`
     : '';
 
@@ -521,11 +525,13 @@ function generatePhotoPageWithCaptureHtml(
     <div class="page photo-page">
       <div class="photo-header">
         <span class="photo-number">#${index + 1}</span>
+        <span class="photo-name">${item.name}</span>
         <span class="photo-floor">${floorLabel}</span>
       </div>
-      <h2 class="photo-name">${item.name}</h2>
-      ${imageHtml}
-      ${floorplanHtml}
+      <div class="photo-images-stack">
+        ${imageHtml}
+        ${floorplanHtml}
+      </div>
       <div class="photo-details">
         <div class="detail-row">
           <span class="detail-label">Location:</span>
@@ -644,13 +650,16 @@ function generateStylesWithCaptures(): string {
       .photo-page {
         display: flex;
         flex-direction: column;
+        height: calc(100vh - 80px); /* Page height minus padding */
+        overflow: hidden;
       }
 
       .photo-header {
         display: flex;
         justify-content: space-between;
         align-items: center;
-        margin-bottom: 16px;
+        margin-bottom: 12px;
+        flex-shrink: 0;
       }
 
       .photo-number {
@@ -667,42 +676,61 @@ function generateStylesWithCaptures(): string {
       }
 
       .photo-name {
-        font-size: 20px;
+        font-size: 16px;
         font-weight: 600;
-        margin-bottom: 20px;
+      }
+
+      .photo-images-stack {
+        display: flex;
+        flex-direction: column;
+        flex: 1;
+        gap: 8px;
+        min-height: 0;
+        overflow: hidden;
+      }
+
+      .image-container {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 0;
+        overflow: hidden;
       }
 
       .photo-image {
-        width: 100%;
-        max-height: 300px;
+        max-width: 100%;
+        max-height: 100%;
         object-fit: contain;
         border-radius: 8px;
-        margin-bottom: 16px;
         background: #E0E0E0;
+      }
+
+      .floorplan-image-large {
+        max-width: 100%;
+        max-height: 100%;
+        object-fit: contain;
+        border-radius: 8px;
       }
 
       .photo-placeholder {
         width: 100%;
-        height: 150px;
+        height: 100%;
         display: flex;
         align-items: center;
         justify-content: center;
         background: #E0E0E0;
         border-radius: 8px;
-        margin-bottom: 16px;
         color: #666;
         font-style: italic;
-      }
-
-      .photo-floorplan-section {
-        margin-bottom: 16px;
-        text-align: center;
       }
 
       .photo-details {
         background: #F5F5F5;
         border-radius: 8px;
-        padding: 16px;
+        padding: 12px;
+        flex-shrink: 0;
+        margin-top: 12px;
       }
 
       .detail-row {
